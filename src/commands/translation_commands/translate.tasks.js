@@ -1,9 +1,11 @@
 // -----------------
 // Global variables
+// Err TAG: RC405??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
 /* eslint-disable consistent-return */
+/* eslint-disable prefer-const */
 const langCheck = require("../../core/lang.check");
 const db = require("../../core/db");
 const sendMessage = require("../../core/command.send");
@@ -12,9 +14,15 @@ const sendMessage = require("../../core/command.send");
 // Destination ID handler
 // -----------------------
 
-const destID = function destID (dest, author)
+function destID (dest, author)
 {
 
+   if (!dest)
+   {
+
+      return "invalid";
+
+   }
    if (dest.startsWith("<#"))
    {
 
@@ -28,7 +36,7 @@ const destID = function destID (dest, author)
    {
 
       return dest.slice(
-         1,
+         3,
          -1
       );
 
@@ -41,11 +49,17 @@ const destID = function destID (dest, author)
    }
    return dest;
 
-};
+}
 
-const destResolver = function destResolver (dest)
+function destResolver (dest, origin)
 {
 
+   if (origin === "target" || origin === "user")
+   {
+
+      return `@${dest}`;
+
+   }
    if (!dest.startsWith("@"))
    {
 
@@ -54,13 +68,14 @@ const destResolver = function destResolver (dest)
    }
    return dest;
 
-};
+}
 
 // ---------------------
 // Remove from database
 // ---------------------
 
-const shoutTasks = function shoutTasks (res, data,)
+// eslint-disable-next-line no-unused-vars
+async function shoutTasks (res, data, command)
 {
 
    data.color = "ok";
@@ -70,7 +85,7 @@ const shoutTasks = function shoutTasks (res, data,)
    // Send message
    // -------------
 
-   sendMessage(data);
+   await sendMessage(data);
 
    for (let i = 0, len = res.length; i < len; i += 1)
    {
@@ -80,13 +95,29 @@ const shoutTasks = function shoutTasks (res, data,)
       const origin = destResolver(task.origin);
       const LangFrom = langCheck(task.LangFrom).valid[0].name;
       const LangTo = langCheck(task.LangTo).valid[0].name;
-      data.text = `:arrow_right:   Translating **${LangFrom}** messages from **<${origin}>** and sending **${LangTo}** messages to **<${dest}>**`;
+      if (command === "t")
+      {
 
+         data.text = `Task ID: **${task.id}**\n` +
+                  `Task Location **${data.message.client.guilds.cache.get(task.server).name}, <${task.server}>**\n` +
+                  `:arrow_right:   Translating **${LangFrom}** messages from **<${origin}>, <${data.channel.id}>**\n` +
+                  `and sending **${LangTo}** messages to **<${dest}>, <${dest.slice(1)}>**`;
+
+      }
+      else
+      {
+
+         data.text = `Task ID: **${task.id}**\n` +
+                  `:arrow_right:   Translating **${LangFrom}** messages from **<${origin}>, <${data.channel.id}>**\n` +
+                  `and sending **${LangTo}** messages to **<${dest}>, <${dest.slice(1)}>**`;
+
+      }
       // -------------
       // Send message
       // -------------
 
-      sendMessage(data);
+      // eslint-disable-next-line no-await-in-loop
+      await sendMessage(data);
 
    }
    data.text = ":negative_squared_cross_mark:  That's all I have!";
@@ -97,13 +128,13 @@ const shoutTasks = function shoutTasks (res, data,)
 
    return sendMessage(data);
 
-};
+}
 
 // ---------------
 // Database error
 // ---------------
 
-const dbError = function dbError (err, data)
+function dbError (err, data)
 {
 
    data.color = "error";
@@ -122,11 +153,197 @@ const dbError = function dbError (err, data)
       err
    );
 
-};
+}
 
-// --------------------
-// Handle stop command
-// --------------------
+// -----------------
+// Local tasks call
+// -----------------
+
+function local (origin, dest, id, data)
+{
+
+   db.getTasks(
+      origin,
+      dest,
+      id,
+      async function error (err, res)
+      {
+
+         if (err)
+         {
+
+            return dbError(
+               err,
+               data
+            );
+
+         }
+
+         // -----------------------------
+         // Error if task does not exist
+         // -----------------------------
+
+         if (res.length < 1 || !res)
+         {
+
+            const orig = destResolver(origin);
+            const des = destResolver(dest, origin);
+            data.color = "error";
+            if (origin === "me")
+            {
+
+               data.text = ":warning:  __**No tasks**__ for you in this server";
+
+            }
+            else if (origin === "target")
+            {
+
+               data.text = `:warning:  __**No tasks**__ for **<${des}>**.`;
+
+            }
+            else
+            {
+
+               data.text = `:warning:  __**No tasks**__ for **<${orig}>**.`;
+
+            }
+            if (dest === "all")
+            {
+
+               data.text = ":warning:  This channel is not being automatically translated for anyone.";
+
+            }
+
+            // -------------
+            // Send message
+            // -------------
+
+            return sendMessage(data);
+
+         }
+
+         // -----------------------------------------------
+         // Otherwise, proceed to shout task from database
+         // -----------------------------------------------
+
+         const command = "l";
+         await shoutTasks(
+            res,
+            data,
+            command
+         );
+
+      }
+   );
+
+}
+
+// -----------------
+// Local tasks call
+// -----------------
+
+function target (data)
+{
+
+   let origin = null;
+   let dest = null;
+   let id = null;
+
+   try
+   {
+
+      if (data.cmd.params && data.cmd.params.split(" ")[1].toLowerCase())
+      {
+
+         origin = data.cmd.params.split(" ")[0].toLowerCase();
+         dest = data.cmd.num;
+         // console.log(`DEBUG: Target Called - ${origin} @${dest}`);
+
+      }
+
+   }
+   catch (err)
+   {
+
+      // console.log(`DEBUG: Error - No Variable for ${data.cmd.params}`);
+      data.text = `:warning:  Missing Variable for ${data.cmd.params}`;
+      return sendMessage(data);
+
+   }
+
+
+   db.getTasks(
+      origin,
+      dest,
+      id,
+      async function error (err, res)
+      {
+
+         if (err)
+         {
+
+            return dbError(
+               err,
+               data
+            );
+
+         }
+
+         // -----------------------------
+         // Error if task does not exist
+         // -----------------------------
+
+         if (res.length < 1 || !res)
+         {
+
+            const des = destResolver(dest, origin);
+            data.color = "error";
+            if (origin === "user")
+            {
+
+               data.text = `:warning:  __**No tasks**__ for **<${des}>** in Database`;
+
+            }
+            else if (origin === "channel")
+            {
+
+               data.text = `:warning:  __**No tasks**__ for targeted channel.`;
+
+            }
+            else if (origin === "server")
+            {
+
+               data.text = `:warning:  __**No tasks**__ for targeted server.`;
+
+            }
+
+            // -------------
+            // Send message
+            // -------------
+
+            return sendMessage(data);
+
+         }
+
+         // -----------------------------------------------
+         // Otherwise, proceed to shout task from database
+         // -----------------------------------------------
+
+         const command = "t";
+         await shoutTasks(
+            res,
+            data,
+            command
+         );
+
+      }
+   );
+
+}
+
+// ---------------------
+// Handle tasks command
+// ---------------------
 
 module.exports = function run (data)
 {
@@ -135,7 +352,7 @@ module.exports = function run (data)
    // Disallow this command in Direct/Private messages
    // -------------------------------------------------
 
-   if (data.message.channel.type === "dm")
+   if (data.message.channel.type === "DM")
    {
 
       data.color = "warn";
@@ -172,82 +389,19 @@ module.exports = function run (data)
    // Disallow non-managers to stop for others
    // -----------------------------------------
 
-   Override: if (!process.env.DISCORD_BOT_OWNER_ID.includes(data.message.author.id))
+   Override: if (!data.message.isDev)
    {
 
-      if (data.cmd.for[0] !== "me" && !data.message.isManager)
+      if (!data.message.isGlobalChanManager)
       {
 
-         data.color = "error";
-         data.text =
-         ":cop:  You need to be a channel manager to stop auto translating " +
-         "this channel for others.";
-
-         // -------------
-         // Send message
-         // -------------
-
-         return sendMessage(data);
-
-      }
-      break Override;
-
-   }
-
-   // ------------------
-   // Prepare task data
-   // ------------------
-
-   const origin = data.message.channel.id;
-   const dest = destID(
-      data.cmd.for[0],
-      data.message.author.id
-   );
-   const destDisplay = destResolver(
-      data.cmd.for[0],
-      data.message.author.id
-   );
-
-   // ------------------------------
-   // Check if task actually exists
-   // ------------------------------
-
-   db.getTasks(
-      origin,
-      dest,
-      function error (err, res)
-      {
-
-         if (err)
+         // console.log(`DEBUG: Is not global chan manager`);
+         if (!data.message.isChanManager)
          {
 
-            return dbError(
-               err,
-               data
-            );
-
-         }
-
-         // -----------------------------
-         // Error if task does not exist
-         // -----------------------------
-
-         if (res.length < 1 || !res)
-         {
-
-            const orig = destResolver(origin);
+            // console.log(`DEBUG: Is not single chan manager`);
             data.color = "error";
-            data.text =
-            ":warning:  __**No tasks**__ for " +
-            `**<${orig}>**.`;
-            if (dest === "all")
-            {
-
-               data.text =
-               ":warning:  This channel is not being automatically " +
-               "translated for anyone.";
-
-            }
+            data.text = ":police_officer:  This command is reserved for server admins & channel managers";
 
             // -------------
             // Send message
@@ -256,20 +410,97 @@ module.exports = function run (data)
             return sendMessage(data);
 
          }
-
-         // ------------------------------------------------
-         // Otherwise, proceed to remove task from database
-         // ------------------------------------------------
-
-         shoutTasks(
-            res,
-            data,
-            origin,
-            dest,
-            destDisplay
-         );
+         // console.log(`DEBUG: Is single chan manager`);
+         break Override;
 
       }
-   );
+      // console.log(`DEBUG: Is global chan manager`);
+      break Override;
+
+   }
+
+   let origin = null;
+   let dest = null;
+   let id = null;
+
+   if (!data.cmd.params)
+   {
+
+      // ------------------
+      // Prepare task data
+      // ------------------
+
+      origin = data.message.channel.id;
+      dest = destID(
+         data.cmd.params,
+         data.message.author.id
+      );
+      id = data.message.guild.id;
+      return local(origin, dest, id, data);
+
+   }
+   else if (data.cmd.params.toLowerCase().includes("server") || data.cmd.params.toLowerCase().includes("channel") || data.cmd.params.toLowerCase().includes("user"))
+   {
+
+      if (!data.message.isDev)
+      {
+
+         // console.log(`DEBUG: Is not single chan manager`);
+         data.color = "error";
+         data.text = ":police_officer:  This command is reserved for Developers only";
+
+         // -------------
+         // Send message
+         // -------------
+
+         return sendMessage(data);
+
+      }
+
+      // console.log("DEBUG: Server / Channel / User Command called");
+      return target(data);
+
+   }
+   else if (data.cmd.params.toLowerCase().includes("#"))
+   {
+
+      origin = destID(
+         data.cmd.params,
+         data.message.author.id
+      );
+      dest = "target";
+      id = null;
+      return local(origin, dest, id, data);
+
+
+   }
+   else if (data.cmd.params.toLowerCase().includes("me"))
+   {
+
+      origin = "me";
+      dest = destID(
+         data.cmd.params,
+         data.message.author.id
+      );
+      id = data.message.guild.id;
+      return local(origin, dest, id, data);
+
+   }
+   else if (data.cmd.params.toLowerCase().includes("@"))
+   {
+
+      // ------------------
+      // Prepare task data
+      // ------------------
+
+      origin = "target";
+      dest = destID(
+         data.cmd.params,
+         data.message.author.id
+      );
+      id = data.message.guild.id;
+      return local(origin, dest, id, data);
+
+   }
 
 };

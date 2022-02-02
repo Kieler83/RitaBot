@@ -1,6 +1,6 @@
-
 // -----------------
 // Global variables
+// Err TAG: RC305??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -13,7 +13,7 @@ const message = require("../../message");
 // Prefix varible command handler
 // -------------------------------
 
-const prefix = function prefix (data)
+function prefix (data)
 {
 
    const newPrefix = data.cmd.params.split(" ")[0].toLowerCase();
@@ -22,7 +22,7 @@ const prefix = function prefix (data)
    {
 
       const reset = "!tr";
-      console.log(`DEBUG: New Prefix ${newPrefix}`);
+      // console.log(`DEBUG: New Prefix ${newPrefix}`);
       return db.updatePrefix(
          data.message.channel.guild.id,
          reset,
@@ -59,7 +59,7 @@ const prefix = function prefix (data)
    else if (newPrefix !== "")
    {
 
-      console.log(`DEBUG: New Prefix ${newPrefix}`);
+      // console.log(`DEBUG: New Prefix ${newPrefix}`);
       return db.updatePrefix(
          data.message.channel.guild.id,
          // This would be the new prefix
@@ -101,7 +101,7 @@ const prefix = function prefix (data)
 
    return sendMessage(data);
 
-};
+}
 
 // -----------------------
 // Command code
@@ -114,18 +114,14 @@ module.exports = function run (data)
    // Command allowed by admins only
    // -------------------------------
 
-   Override: if (!process.env.DISCORD_BOT_OWNER_ID.includes(data.message.author.id))
+   Override: if (!data.message.isDev)
    {
 
-      if (data.message.isAdmin === false)
+      if (!data.message.isAdmin)
       {
 
-         {
-
-            data.color = "warn";
-
-         }
-         data.text = ":cop:  This command is reserved for server admins.";
+         data.color = "warn";
+         data.text = ":police_officer:  This command is reserved for server admins.";
 
          // -------------
          // Send message

@@ -1,52 +1,69 @@
 // -----------------
 // Global variables
+// Err TAG: RC402??
 // -----------------
 
 //  Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
-const fn = require("../../core/helpers");
 const translate = require("../../core/translate");
 const logger = require("../../core/logger");
 const sendMessage = require("../../core/command.send");
-const time = {
-   "long": 10000,
-   "short": 5000
-};
+const auth = require("../../core/auth");
 
 // -----------------------------
 // Command Disabled Pending Fix
 // -----------------------------
 
-module.exports.run = function run (data)
+module.exports.old = function old (data)
 {
 
+   try
+   {
 
-   data.message.delete({"timeout": time.short}).catch((err) => console.log(
-      "Command Message Deleted Error, command.send.js = ",
-      err
-   ));
-   return data.message.channel.send({"embed": {
+      setTimeout(() => data.message.delete(), auth.time.short);
+
+   }
+   catch (err)
+   {
+
+      console.log(
+         "Command Message Deleted Error, translate.last.js = Line 29",
+         err
+      );
+
+   }
+   return data.message.channel.send({"embeds": [{
       "author": {
-         "icon_url": data.client.user.displayAvatarURL(),
-         "name": data.client.user.username
+         "icon_url": data.message.client.user.displayAvatarURL(),
+         "name": data.message.client.user.username
       },
       "color": 13107200,
       "description": `:no_entry_sign: This command has been disabled Pending a fix \n
      We apologise for any inconvenience this may cause.`
 
-   }}).then((msg) =>
+   }]}).then((msg) =>
    {
 
-      msg.delete({"timeout": time.long}).catch((err) => console.log(
-         "UpdateBot Bot Message Deleted Error, settings.js = ",
-         err
-      ));
+      try
+      {
+
+         setTimeout(() => msg.delete(), auth.time.short);
+
+      }
+      catch (err)
+      {
+
+         console.log(
+            "Command Message Deleted Error, transalte.last.js = 56",
+            err
+         );
+
+      }
 
    });
 
 };
 
-
-const getCount = function getCount (count)
+function getCount (count)
 {
 
    if (count)
@@ -57,13 +74,13 @@ const getCount = function getCount (count)
    }
    return "-1";
 
-};
+}
 
 // ---------------
 // Translate last
 // ---------------
 
-module.exports.old = function old (data)
+module.exports.run = function run (data)
 {
 
    // -------------------------
@@ -96,7 +113,8 @@ module.exports.old = function old (data)
 
    }
 
-   if (mode === "all" && Math.abs(count) > data.config.maxChains)
+   // eslint-disable-next-line no-inline-comments
+   if (mode === "all" && Math.abs(count) > /* data.config.maxChains*/ 30)
    {
 
       data.color = "warn";
@@ -117,8 +135,8 @@ module.exports.old = function old (data)
    // Get requested collection
    // -------------------------
 
-   let limit = Math.abs(count) * data.config.maxChainLen + 1;
-
+   // let limit = Math.abs(count) * data.config.maxChainLen + 1;
+   let limit = Math.abs(count) + 1;
    if (limit > 100)
    {
 
@@ -131,7 +149,10 @@ module.exports.old = function old (data)
    }).then((messages) =>
    {
 
-      const messagesArray = messages.array().reverse();
+      let messagesArray = Array.from(messages);
+      messagesArray.shift();
+      messagesArray = messagesArray.reverse();
+
       let lastAuthor = null;
       const chains = [];
 
@@ -139,32 +160,38 @@ module.exports.old = function old (data)
       {
 
          if (
-            !messagesArray[i].author.bot &&
-            !messagesArray[i].content.startsWith(data.config.translateCmdShort)
+            !messagesArray[i][1].author.bot &&
+            !messagesArray[i][1].content.startsWith(data.config.translateCmdShort)
          )
          {
 
             if (
-               lastAuthor === messagesArray[i].author.id &&
+               lastAuthor === messagesArray[i][1].author.id &&
                chains[chains.length - 1].msgs.length < data.config.maxChainLen
             )
             {
 
-               chains[chains.length - 1].msgs.push(messagesArray[i].content);
+               chains[chains.length - 1].msgs.push(messagesArray[i][1].content);
 
             }
 
             else
             {
 
+               messagesArray[i][1].server = data.message.server;
                chains.push({
-                  "author": messagesArray[i].author,
-                  "color": fn.getRoleColor(messagesArray[i].member),
-                  "id": [messagesArray[i].id],
-                  "msgs": [messagesArray[i].content],
-                  "time": messagesArray[i].createdTimestamp
+                  data,
+                  // eslint-disable-next-line sort-keys
+                  "author": messagesArray[i][1].author,
+                  // eslint-disable-next-line spaced-comment
+                  //"color": fn.getRoleColor(messagesArray[i][1].member),
+                  "color": messagesArray[i][1].member.displayColor,
+                  "id": [messagesArray[i][1].id],
+                  "message": messagesArray[i][1],
+                  "msgs": [messagesArray[i][1].content],
+                  "time": messagesArray[i][1].createdTimestamp
                });
-               lastAuthor = messagesArray[i].author.id;
+               lastAuthor = messagesArray[i][1].author.id;
 
             }
 
@@ -219,6 +246,7 @@ module.exports.old = function old (data)
 
       data.bufferChains = reqChains;
       delete data.message.attachments;
+
       return translate(data);
 
    }).

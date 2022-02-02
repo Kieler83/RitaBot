@@ -1,5 +1,6 @@
 // -----------------
 // Global variables
+// Err TAG: RC001??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -12,31 +13,43 @@ const fn = require("../core/helpers");
 // Commands
 // ---------
 
-const cmdHelp = require("./utility_commands/help");
-const cmdList = require("./info_commands/list");
-const cmdStats = require("./info_commands/stats");
-const cmdVersion = require("./info_commands/version");
-const cmdEmbed = require("./settings_commands/embed");
+const cmdAnnounce = require("./settings_commands/announce");
+const cmdBlacklist = require("./utility_commands/blacklist");
 const cmdBot2bot = require("./settings_commands/bot2bot");
+const cmdCheck = require("./utility_commands/check");
+const cmdCL = require("./info_commands/changelog");
+const cmdCreate = require("./utility_commands/create.channel");
+const cmdDebug = require("./settings_commands/debug");
+const cmdDocs = require("./info_commands/docs");
 const cmdDonate = require("./utility_commands/donate");
+const cmdEject = require("./utility_commands/eject");
+const cmdEmbed = require("./settings_commands/embed");
+const cmdHelp = require("./utility_commands/help");
+const cmdHistory = require("./info_commands/history");
+const cmdInvite = require("./utility_commands/invite");
+const cmdJoin = require("./info_commands/join");
+const cmdList = require("./info_commands/list");
+const cmdMod = require("./future_commands/mod");
 const cmdMisc = require("./info_commands/misc");
+const cmdPrefix = require("./settings_commands/prefix");
+const cmdPurge = require("./settings_commands/purge");
+const cmdReact = require("./settings_commands/react");
 const cmdSettings = require("./settings_commands/settings");
+const cmdStats = require("./info_commands/stats");
 const cmdTranslateLast = require("./translation_commands/translate.last");
 const cmdTranslateThis = require("./translation_commands/translate.this");
 const cmdTranslateAuto = require("./translation_commands/translate.auto");
 const cmdTranslateStop = require("./translation_commands/translate.stop");
 const cmdTranslateTasks = require("./translation_commands/translate.tasks");
-const cmdDebug = require("./settings_commands/debug");
-const cmdPrefix = require("./settings_commands/prefix");
-const cmdCreate = require("./utility_commands/create.channel");
-const cmdMod = require("./future_commands/mod.js");
+const cmdVersion = require("./info_commands/version");
+const cmdPin = require("./utility_commands/user.auth");
 
 
 // ---------------------------------------
 // Extract a parameter's value with regex
 // ---------------------------------------
 
-const extractParam = function extractParam (key, str, def = null, allowArray = false)
+function extractParam (key, str, def = null, allowArray = false)
 {
 
    const rgx = new RegExp(`${key}\\s*((?:(?:\\S*\\s*,\\s*)+\\S*)|\\S*)`, "m");
@@ -63,7 +76,7 @@ const extractParam = function extractParam (key, str, def = null, allowArray = f
             if (matching)
             {
 
-               console.log(matching[1].replace("to ", ""));
+               // console.log(matching[1].replace("to ", ""));
                return matching[1].replace("to ", "");
 
             }
@@ -86,14 +99,14 @@ const extractParam = function extractParam (key, str, def = null, allowArray = f
 
    return def;
 
-};
+}
 
 
 // ---------------------
 // Extract number param
 // ---------------------
 
-const extractNum = function extractNum (str)
+function extractNum (str)
 {
 
    const rgx = new RegExp(
@@ -117,13 +130,13 @@ const extractNum = function extractNum (str)
    }
    return null;
 
-};
+}
 
 // ------------------
 // Check for content
 // ------------------
 
-const checkContent = function checkContent (msg, output)
+function checkContent (msg, output)
 {
 
    const hasContent = (/([^:]*):(.*)/).exec(msg);
@@ -136,13 +149,13 @@ const checkContent = function checkContent (msg, output)
 
    }
 
-};
+}
 
 // -------------
 // Get main arg
 // -------------
 
-const getMainArg = function getMainArg (output)
+function getMainArg (output)
 {
 
    const sepIndex = output.main.indexOf(" ");
@@ -158,13 +171,13 @@ const getMainArg = function getMainArg (output)
 
    }
 
-};
+}
 
 // -------------
 // Strip prefix
 // -------------
 
-const stripPrefix = function stripPrefix (message, config, bot)
+function stripPrefix (message, config, bot)
 {
 
    let cmd = message.content;
@@ -178,11 +191,11 @@ const stripPrefix = function stripPrefix (message, config, bot)
       ""
    );
 
-   if (cmd.startsWith(bot))
+   if (cmd.startsWith(`<@${bot.id}>`) || cmd.startsWith(`<@!${bot.id}>`))
    {
 
       cmd = cmd.replace(
-         bot,
+         /<@.*?>/,
          ""
       );
 
@@ -190,7 +203,7 @@ const stripPrefix = function stripPrefix (message, config, bot)
 
    return cmd;
 
-};
+}
 
 // --------------------------------------
 // Analyze arguments from command string
@@ -203,7 +216,7 @@ module.exports = function run (data)
       "main": stripPrefix(
          data.message,
          data.config,
-         `${data.bot}`
+         data.message.client.user
       ).trim(),
       "params": null
    };
@@ -223,7 +236,7 @@ module.exports = function run (data)
 
    }
 
-   if (output.main === `${data.bot}`)
+   if (output.main === `${data.message.client.user}`)
    {
 
       output.main = "help";
@@ -247,7 +260,7 @@ module.exports = function run (data)
    output.for = extractParam(
       "for",
       output.params,
-      ["me"],
+      ["invalid"],
       true
    );
 
@@ -259,7 +272,7 @@ module.exports = function run (data)
 
    let id = "bot";
 
-   if (data.message.channel.type === "text")
+   if (data.message.channel.type === "GUILD_TEXT")
    {
 
       id = data.message.channel.guild.id;
@@ -268,7 +281,7 @@ module.exports = function run (data)
 
    db.getServerInfo(
       id,
-      function getServerInfo (server)
+      async function getServerInfo (server)
       {
 
          output.server = server;
@@ -276,6 +289,14 @@ module.exports = function run (data)
          // -----------------------------------
          // Get default language of server/bot
          // -----------------------------------
+
+         if (output.server[0].blacklisted === true)
+         {
+
+            data.message.client.guilds.cache.get(id).leave();
+            console.log(`DEBUG: RC00102 - Self Kicked on command use due to blacklisted`);
+
+         }
 
          if (output.to === "default")
          {
@@ -307,11 +328,13 @@ module.exports = function run (data)
 
          data.canWrite = true;
 
-         if (data.message.channel.type === "text")
+         const user = await data.message.channel.guild.members.fetch(data.message.client.user.id);
+
+         if (data.message.channel.type === "GUILD_TEXT")
          {
 
             data.canWrite = fn.checkPerm(
-               data.message.channel.guild.me,
+               user,
                data.message.channel,
                "SEND_MESSAGES"
             );
@@ -332,22 +355,36 @@ module.exports = function run (data)
          // ---------------
 
          const cmdMap = {
+            "announce": cmdAnnounce,
             "auto": cmdTranslateAuto,
             "ban": cmdMod.ban,
+            "blacklist": cmdBlacklist.blacklist,
             "bot2bot": cmdBot2bot,
+            "cache": cmdMisc.cache,
+            "check": cmdCheck,
+            "cl": cmdCL,
             "create": cmdCreate,
             "debug": cmdDebug,
+            "delmsg": cmdMod.deleteid,
+            "docs": cmdDocs,
             "donate": cmdDonate,
+            "eject": cmdEject.eject,
             "embed": cmdEmbed,
             "help": cmdHelp,
+            "history": cmdHistory,
             "id": cmdMisc.ident,
             "info": cmdHelp,
-            "invite": cmdMisc.invite,
-            "last": cmdTranslateLast.run,
+            "invite": cmdInvite,
+            "kick": cmdMod.kick,
+            "last": cmdTranslateLast.old,
             "list": cmdList,
             "mute": cmdMod.mute,
+            "newbot": cmdJoin.newBot,
+            "pin": cmdPin,
             "prefix": cmdPrefix,
             "proc": cmdMisc.proc,
+            "purge": cmdPurge,
+            "react": cmdReact,
             "settings": cmdSettings,
             "shards": cmdMisc.shards,
             "stats": cmdStats,
@@ -355,8 +392,13 @@ module.exports = function run (data)
             "tasks": cmdTranslateTasks,
             "this": cmdTranslateThis,
             "unban": cmdMod.unban,
+            "unblacklist": cmdBlacklist.unblacklist,
             "unmute": cmdMod.unmute,
-            "version": cmdVersion
+            "unwarn": cmdEject.unwarn,
+            "update": cmdMisc.update,
+            "updatelink": cmdMisc.updatelink,
+            "version": cmdVersion,
+            "warn": cmdEject.warn
          };
 
          // --------------------------
@@ -376,6 +418,17 @@ module.exports = function run (data)
          }
 
       }
-   );
+   ).catch((err) =>
+   {
+
+      console.log("DEBUG: RC00101");
+      console.log(
+         "error",
+         err,
+         "warning",
+         id
+      );
+
+   });
 
 };

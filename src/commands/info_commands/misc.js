@@ -1,42 +1,26 @@
 // -----------------
 // Global variables
+// Err TAG: RC206??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
 /* eslint-disable no-irregular-whitespace*/
 /* eslint-disable no-magic-numbers */
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-use-before-define */
+/* eslint-disable consistent-return */
 const auth = require("../../core/auth");
-const fn = require("../../core/helpers");
-const logger = require("../../core/logger");
+const db = require("../../core/db");
 const process = require("process");
 const {stripIndent} = require("common-tags");
 const {oneLine} = require("common-tags");
 const secConverter = require("rita-seconds-converter");
 const sendMessage = require("../../core/command.send");
+const botSend = require("../../core/send");
 
 // ------------
 // Invite Link
 // ------------
-
-module.exports.invite = function invite (data)
-{
-
-   data.color = "info";
-   data.text = `Invite ${data.bot} `;
-   data.text += `\`v${data.config.version}\` to your server\n\n`;
-   data.text += `${auth.invite}`;
-   data.footer = {
-      "text":
-         "Requires VIEW, SEND, REACT, EMBED, ATTACH and MENTION permissions.\n"
-   };
-
-   // -------------
-   // Send message
-   // -------------
-
-   return sendMessage(data);
-
-};
 
 // -----------------------
 // Get info on all shards
@@ -49,121 +33,77 @@ module.exports.shards = function shards (data)
    // Get shard info
    // ---------------
 
-   const {shard} = data.message.client;
+   data.color = "status";
 
-   if (!shard)
-   {
-
-      // ---------------
-      // Render message
-      // ---------------
-
-      data.title = "Shards Info";
-
-      data.footer = {
-         "text": "Single Process - No Sharding Manager"
-      };
-
-      data.color = "info";
-
-      data.text = `​\n${oneLine`
+   data.text = `__**Bot Shard Information**__\n\n`;
+   data.text += `​${oneLine`
          :bar_chart:  ​
-         **${data.message.client.guilds.cache.size}**  guilds  ·  ​
-         **${data.message.client.channels.cache.size}**  channels  ·  ​
-         **${data.message.client.users.cache.size}**  users
-      `}\n​`;
+         **\`${data.message.client.options.shardCount}\`**  shards  ·  ​
+         **\`${data.message.client.guilds.cache.size}\`**  guilds  ·  ​
+         **\`${data.message.client.channels.cache.size}\`**  channels  ·  ​
+         **\`${db.server_obj.size}\`**  users
+      `}\n​​`;
 
-      // -------------
-      // Send message
-      // -------------
+   const shard = [];
+   const activeGuilds = Array.from(data.message.client.guilds._cache);
+   let i = 0;
 
-      return sendMessage(data);
 
-   }
-
-   // --------------------------
-   // Get proccess/shard uptime
-   // --------------------------
-
-   const shardErr = function shardErr (err)
+   activeGuilds.forEach((guild) =>
    {
 
-      return logger(
-         "error",
-         err,
-         "shardFetch",
-         data.message.guild.name
-      );
-
-   };
-
-   shard.fetchClientValues("guilds.cache.size").then((guildsSize) =>
-   {
-
-      shard.fetchClientValues("channels.cache.size").then((channelsSize) =>
+      // console.log(`ID: ${guild[1].shardId}`);
+      if (i === guild[1].shardId)
       {
 
-         shard.fetchClientValues("users.cache.size").then((usersSize) =>
+
+         if (!shard[i])
          {
 
-            const output = [];
+            i += 1;
+            // console.log(`Shard: ${i} Uptime: ${guild.shard.connectedAt} Ping: ${guild.shard.ping}`);
+            guild[1].shard.count = 1;
+            return shard.push(guild[1].shard);
 
-            // eslint-disable-next-line no-plusplus
-            for (let i = 0; i < shard.count; i += 1)
-            {
+         }
+         // console.log(`ID: ${guild[1].count}`);
 
-               output.push({
-                  "inline": true,
-                  "name": `:pager: - Shard #${i}`,
-                  "value": stripIndent`
-                     ​
-                     **\`${guildsSize[i]}\`** guilds
+      }
+      shard[i - 1].count += 1;
 
-                     **\`${channelsSize[i]}\`** channels
+   });
 
-                     **\`${usersSize[i]}\`** users
-                     ​
-                  `
-               });
+   i = 0;
+   shard.forEach((info) =>
+   {
 
-            }
+      const shardUptime = secConverter(Date.now() - info.connectedAt);
+      function uptimeFormat (uptime)
+      {
 
-            // ---------------
-            // Render message
-            // ---------------
+         return oneLine`
+            **\`${uptime.days}\`** days
+            **\`${uptime.hours}:${uptime.minutes}:${uptime.seconds}\`**
+         `;
 
-            data.title = "Shards Info";
+      }
 
-            data.text = `​\n${oneLine`
-               :bar_chart:   Total:  ​
-               **${shard.count}**  shards  ·  ​
-               **${fn.arraySum(guildsSize)}**  guilds  ·  ​
-               **${fn.arraySum(channelsSize)}**  channels  ·  ​
-               **${fn.arraySum(usersSize)}**  users
-            `}\n​`;
+      i += 1;
+      data.text += `​\n${oneLine`
+         Shard: **\`${info.id}\`**  ·  ​
+         Uptime: ${uptimeFormat(shardUptime)}  ·  ​
+         Ping **\`${info.ping}\`**  ·  ​
+         Servers: **\`${info.count}\`**
+      `}​`;
 
-            data.color = "info";
-
-            data.fields = output;
-
-            // -------------
-            // Catch errors
-            // -------------
-
-         }).
-            catch(shardErr);
-
-      }).
-         catch(shardErr);
-
-   }).
-      catch(shardErr);
+   });
 
    // -------------
    // Send message
    // -------------
 
    return sendMessage(data);
+
 
 };
 
@@ -182,28 +122,11 @@ module.exports.proc = function proc (data)
    const pid = `**\`#${process.pid}\`** `;
    const platform = `**\`${process.platform}\`** `;
 
-   // ---------------
-   // Get shard info
-   // ---------------
-
-   let {shard} = data.message.client;
-
-   if (!shard)
-   {
-
-      shard = {
-         "count": 1,
-         "id": 0
-
-      };
-
-   }
-
    // -----------------------
    // Byte formatter (mb/gb)
    // -----------------------
 
-   const byteFormat = function byteFormat (bytes)
+   function byteFormat (bytes)
    {
 
       if (bytes > 750000000)
@@ -217,7 +140,7 @@ module.exports.proc = function proc (data)
       const mb = bytes / 1000 / 1000;
       return `${mb.toFixed(2)} mb`;
 
-   };
+   }
 
    // -----------------
    // Get memory usage
@@ -226,7 +149,7 @@ module.exports.proc = function proc (data)
    const memory = process.memoryUsage();
    const memoryFormat = oneLine`
       **\`${byteFormat(memory.rss)}\`** \`rss\` ·
-      **\`${byteFormat(memory.heapUsed)}\`**\`/\`
+      **\`${byteFormat(memory.heapUsed)}\`** \`/\`
       **\`${byteFormat(memory.heapTotal)}\`** \`heap\` ·
       **\`${byteFormat(memory.external)}\`** \`external\`
    `;
@@ -242,7 +165,7 @@ module.exports.proc = function proc (data)
 
    const shardUptime = secConverter(data.message.client.uptime);
 
-   const uptimeFormat = function uptimeFormat (uptime)
+   function uptimeFormat (uptime)
    {
 
       return oneLine`
@@ -250,29 +173,75 @@ module.exports.proc = function proc (data)
          **\`${uptime.hours}:${uptime.minutes}:${uptime.seconds}\`**
       `;
 
-   };
+   }
+
+   // ---------
+   // Get ping
+   // ---------
+
+   // eslint-disable-next-line prefer-template
+   const botPing = Date.now() - data.message.createdTimestamp;
+   // const yourPing = new Date().getTime() - data.message.createdTimestamp;
 
    // ---------------
    // Render message
    // ---------------
 
    data.text = stripIndent`
-      :robot:  Process:  ${title + pid + platform}
+   :robot:  Process:  ${title + pid + platform}
 
-      :control_knobs:  RAM:  ${memoryFormat}
+   :control_knobs:  RAM:  ${memoryFormat}
 
-      :stopwatch:  Proc Uptime:  ${uptimeFormat(procUptime)}
+   :ping_pong:  Rita's Latency: **\`${botPing}\`** ms
 
-      :stopwatch:  Shard Uptime:  ${uptimeFormat(shardUptime)}
+   :stopwatch:  Proc Uptime:  ${uptimeFormat(procUptime)}
 
-      :pager:  Current Shard:  **\`${shard.id + 1} / ${shard.count}\`**
+   :stopwatch:  Shard Uptime:  ${uptimeFormat(shardUptime)}
+
+   :pager:  Current Shard:  **\`${data.message.guild.shardId + 1} / ${data.message.client.options.shardCount}\`**
    `;
 
    // -------------
    // Send message
    // -------------
 
+   data.color = "status";
    sendMessage(data);
+
+};
+
+// --------------
+// Cache Message
+// --------------
+
+module.exports.cache = function cache (data)
+{
+
+   // ------------------
+   // Gather ID Details
+   // ------------------
+
+   // console.log("DEBUG: ID Message");
+
+   data.text = stripIndent`
+   **:robot: Cached Client:** \`${data.message.client.user.username}\`
+
+   **:homes: Guilds:** \`${data.message.client.guilds.cache.size || "N/A"}\`
+
+   **:books: Channels:** \`${data.message.client.channels.cache.size || "N/A"}\`
+
+   **:people_holding_hands: Users:** \`${data.message.client.users.cache.size || "N/A"}\`
+
+   **:slight_smile: Emojis:** \`${data.message.client.emojis.cache.size || "N/A"}\`
+
+   **:heart: Message Lifetime:** \`${data.message.client.options.messageCacheLifetime || "N/A"}\`
+
+   **:broom: Sweep Interval:** \`${data.message.client.options.messageSweepInterval || "N/A"}\``;
+   // -------------
+   // Send message
+   // -------------
+
+   return sendMessage(data);
 
 };
 
@@ -287,26 +256,166 @@ module.exports.ident = function ident (data)
    // Gather ID Details
    // ------------------
 
-   console.log("DEBUG: ID Message");
+   // console.log("DEBUG: ID Message");
 
-   data.color = "info";
-   data.text = `*User Name:* \`${data.message.author.username}\`\n`;
-   data.text += `*User ID:* \`${data.message.author.id}\`\n\n`;
-   data.text += `*Server Name:* \`${data.message.channel.guild.name}\`\n`;
-   data.text += `*Server ID:* \`${data.message.channel.guild.id}\`\n\n`;
-   data.text += `*Bot Name:* \`${data.bot.username}\`\n`;
-   data.text += `*Bot ID:* \`${data.bot.id}\`\n\n`;
-   data.text += `*Chan Name:* \`${data.message.channel.name}\`\n`;
-   data.text += `*Chan ID:* \`${data.message.channel.id}\``;
-   data.footer = {
-      "text":
-         "Requires VIEW, SEND, REACT, EMBED, ATTACH and MENTION permissions.\n"
-   };
+   data.color = "status";
+   data.text = `**User Name:** \`${data.message.guild.members.cache.get(data.message.author.id).user.username}\`\n` +
+   `**Nick Name:** \`${data.message.guild.members.cache.get(data.message.author.id).nickname || "None"}\`\n` +
+   `**User ID:** \`${data.message.author.id}\`\n\n` +
+   `**Server Name:** \`${data.message.channel.guild.name}\`\n` +
+   `**Server ID:** \`${data.message.channel.guild.id}\`\n\n` +
+   `**Bot Name:** \`${data.message.client.user.username}\`\n` +
+   `**Bot ID:** \`${data.message.client.user.id}\`\n\n` +
+   `**Chan Name:** \`${data.message.channel.name}\`\n` +
+   `**Chan ID:** \`${data.message.channel.id}\``;
 
    // -------------
    // Send message
    // -------------
 
    return sendMessage(data);
+
+};
+
+// --------------
+// Github Update
+// --------------
+
+module.exports.update = function update (data)
+{
+
+   const cmd = data.config.translateCmdShort;
+
+   // --------------------
+   // Update Instructions
+   // --------------------
+
+   // console.log("DEBUG: ID Message");
+
+   data.color = "status";
+   data.text = `*How to Update your bot:* \n\n` +
+   `*Heroku Users* \n\n` +
+   `**Step 1:** Retrieve your github.com account username \n\n` +
+   `**Step 2:** Copy it and replace YOUR_GITHUB_USERNAME_HERE in the URL below: \n` +
+   `**NOTE:** You can now run the command \`${cmd} updatelink\` to get a pre generate link.\n\n` +
+   "```" +
+   `https://github.com/YOUR_GITHUB_USERNAME_HERE/RitaBot/compare/master...RitaBot-Project:master \n\n` +
+   "```\n" +
+   `**Step 3:** Go to the URL & create the Pull Request. Give the PR a name & accept all changes. \n\n` +
+   `**Step 4:** Finally, merge it and re-deploy your bot in Heroku. \n\n` +
+   `If you need any help please join our discord server: https://discord.gg/mgNR64R \n\n`;
+
+   // -------------
+   // Send message
+   // -------------
+
+   try
+   {
+
+      setTimeout(() => data.message.delete(), auth.time.short);
+
+   }
+   catch (err)
+   {
+
+      console.log(
+         "Command Message Deleted Error, misc.js = Line 299",
+         err
+      );
+
+   }
+   return botSend(data);
+
+};
+
+// -------------------
+// Github Update Link
+// -------------------
+
+module.exports.updatelink = async function updatelink (data)
+{
+
+   // -----------------
+   // Define Namespace
+   // -----------------
+
+   data.gitusername = null;
+
+   // Announcment started - Collect Title.
+   try
+   {
+
+      setTimeout(() => data.message.delete(), auth.time.short);
+
+   }
+   catch (err)
+   {
+
+      console.log(
+         "Command Message Deleted Error, github.js = Line 333",
+         err
+      );
+
+   }
+
+   // ---------------------------
+   // Request USername from User
+   // ---------------------------
+
+   await data.message.channel.send(`Please enter your github username.`).then(() =>
+   {
+
+      data.message.channel.awaitMessages({
+         "errors": ["time"],
+         "max": 1,
+         "time": auth.time.long
+      }).
+         then((message) =>
+         {
+
+            data.gitusername = message.first();
+            clean(data, 2);
+            return data.message.channel.send(`Your github Update link is: https://github.com/${data.gitusername}/RitaBot/compare/master...RitaBot-Project:master`);
+
+
+         }).
+         catch((collected) =>
+         {
+
+            data.message.channel.send(`No Responce Provided Or Error: - Username`);
+            clean(data, 1);
+
+         }).
+         catch((err) =>
+         {
+
+            console.log("Error");
+
+         });
+
+   });
+
+   // --------------------
+   // Clean up after send
+   // --------------------
+
+   function clean (data, value)
+   {
+
+      const messageManager = data.channel.messages;
+      messageManager.fetch({"limit": value}).then((messages) =>
+      {
+
+         // `messages` is a Collection of Message objects
+         messages.forEach((message) =>
+         {
+
+            message.delete();
+
+         });
+
+      });
+
+   }
 
 };

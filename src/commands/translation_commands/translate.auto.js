@@ -1,5 +1,6 @@
 // -----------------
 // Global variables
+// Err TAG: RC401??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -23,12 +24,11 @@ module.exports = function run (data)
    // Disallow this command in Direct/Private messages
    // -------------------------------------------------
 
-   if (data.message.channel.type === "dm")
+   if (data.message.channel.type === "DM")
    {
 
       data.color = "error";
-      data.text =
-         ":no_entry:  This command can only be called in server channels.";
+      data.text = ":no_entry:  This command can only be called in server channels.";
 
       // -------------
       // Send message
@@ -46,8 +46,7 @@ module.exports = function run (data)
    {
 
       data.color = "error";
-      data.text =
-         ":warning:  Please use a defined `langFrom` language to translate from.";
+      data.text = ":warning:  Please use a defined `langFrom` language to translate from.";
 
       // -------------
       // Send message
@@ -61,8 +60,7 @@ module.exports = function run (data)
    {
 
       data.color = "error";
-      data.text =
-         ":warning:  Please use a defined `langTo` language to translate to.";
+      data.text = ":warning:  Please use a defined `langTo` language to translate to.";
 
       // -------------
       // Send message
@@ -91,29 +89,49 @@ module.exports = function run (data)
    // Log task data (dev)
    // --------------------
 
-   logger("dev", data.task);
+   // logger("dev", data.task);
 
    // ------------------------------------------
    // Error if non-manager sets channel as dest
    // ------------------------------------------
-   Override: if (!process.env.DISCORD_BOT_OWNER_ID.includes(data.message.author.id))
+
+   Override: if (!data.message.isDev)
    {
 
-      if (data.cmd.for[0] !== "me" && !data.message.isManager)
+      if (!data.message.isGlobalChanManager)
       {
 
-         data.color = "error";
-         data.text =
-         ":cop:  You need to be a channel manager to " +
-         "auto translate for others.";
+         // console.log(`DEBUG: Is not global chan manager`);
+         if (!data.message.isChanManager)
+         {
 
-         // -------------
-         // Send message
-         // -------------
+            // console.log(`DEBUG: Is not single chan manager`);
+            if (!data.cmd.for.includes("me"))
+            {
 
-         return sendMessage(data);
+
+               // console.log(`DEBUG: Task for is not "Me"`);
+               data.color = "error";
+               data.text = ":police_officer:  This command is reserved for server admins & channel managers";
+
+               // -------------
+               // Send message
+               // -------------
+
+               return sendMessage(data);
+
+
+            }
+            // console.log(`DEBUG: Task for is "Me"`);
+            // console.log(`DEBUG: ${!data.cmd.for.includes("me")}`);
+            break Override;
+
+         }
+         // console.log(`DEBUG: Is single chan manager`);
+         break Override;
 
       }
+      // console.log(`DEBUG: Is global chan manager`);
       break Override;
 
    }
@@ -138,9 +156,7 @@ module.exports = function run (data)
       {
 
          data.color = "error";
-         data.text =
-            ":no_entry:  Cannot add more auto-translation tasks for this " +
-            `channel (${data.config.maxTasksPerChannel} max)`;
+         data.text = `:no_entry:  Cannot add more auto-translation tasks for this channel (${data.config.maxTasksPerChannel} max)`;
 
          // -------------
          // Send message
@@ -153,119 +169,6 @@ module.exports = function run (data)
       taskLoop();
 
    });
-
-   // -------------------------------------------------
-   // Resolve ID of each destiantion (user dm/channel)
-   // -------------------------------------------------
-
-   const taskLoop = function taskLoop ()
-   {
-
-      data.task.for.forEach((dest) => // eslint-disable-line complexity
-      {
-
-         // Resolve `me` / original message author
-
-         if (dest === "me")
-         {
-
-            // ---------------
-            // Old Code Below
-            // ---------------
-
-            taskBuffer.update(`@${data.message.author.id}`);
-
-         }
-
-         // Resolve @everyone/@here
-
-         if (dest === "@everyone" || dest === "@here")
-         {
-
-            taskBuffer.update(data.message.channel.id);
-
-         }
-
-         // Resolve mentioned user(s)
-
-         if (dest.startsWith("<@"))
-         {
-
-            // ---------------
-            // Old Code Below
-            // ---------------
-
-
-            const userID = dest.slice(3, -1);
-
-            fn.getUser(data.client, userID, (user) =>
-            {
-
-               if (user && !user.bot && user.createDM)
-               {
-
-                  user.createDM().then((dm) =>
-                  {
-
-                     taskBuffer.update(dm.id);
-
-                  }).
-                     catch((err) => logger("error", err));
-
-                  taskBuffer.update(`@${user.id}`);
-
-               }
-               else
-               {
-
-                  data.task.invalid.push(dest);
-                  taskBuffer.reduce();
-
-               }
-
-            });
-
-         }
-
-         // Resolve mentioned channel(s)
-
-         if (dest.startsWith("<#"))
-         {
-
-            const channel = data.client.channels.cache.get(dest.slice(2, -1));
-
-            if (channel)
-            {
-
-               taskBuffer.update(channel.id);
-
-            }
-            else
-            {
-
-               data.task.invalid.push(dest);
-               taskBuffer.reduce();
-
-            }
-
-         }
-
-         // Invalid dests
-
-         if (
-            dest.startsWith("@") ||
-            !dest.startsWith("<") && dest !== "me"
-         )
-         {
-
-            data.task.invalid.push(dest);
-            taskBuffer.reduce();
-
-         }
-
-      });
-
-   };
 
    // ------------
    // Task buffer
@@ -305,11 +208,157 @@ module.exports = function run (data)
       }
    };
 
+   // -------------------------------------------------
+   // Resolve ID of each destiantion (user dm/channel)
+   // -------------------------------------------------
+
+   function taskLoop ()
+   {
+
+      data.task.for.forEach((dest) => // eslint-disable-line complexity
+      {
+
+         // Resolve `me` / original message author
+
+         if (dest === "me")
+         {
+
+            // ---------------
+            // Old Code Below
+            // ---------------
+
+            taskBuffer.update(`@${data.message.author.id}`);
+
+         }
+
+         // Resolve @everyone/@here
+
+         if (dest === "@everyone" || dest === "@here")
+         {
+
+            taskBuffer.update(data.message.channel.id);
+
+         }
+
+         // Resolve mentioned user(s)
+         if (dest.startsWith("<@"))
+         {
+
+            const userID = dest.slice(3, -1);
+
+            fn.getUser(data.message.client, userID, (user) =>
+            {
+
+               // console.log("DEBUG: Line 204 - Translate.Auto.js");
+               if (user && !user.bot && user.createDM)
+               {
+
+                  user.createDM().then((dm) =>
+                  {
+
+                     taskBuffer.update(dm.id);
+
+                  }).
+                     catch((err) => logger("error", err, "dm", data.message.channel.guild.name));
+
+                  taskBuffer.update(`@${user.id}`);
+
+               }
+               else
+               {
+
+                  data.task.invalid.push(dest);
+                  taskBuffer.reduce();
+
+               }
+
+            });
+
+         }
+
+         // Resolve mentioned channel(s)
+
+         if (dest.startsWith("<#"))
+         {
+
+            const channel = data.message.client.channels.cache.get(dest.slice(2, -1));
+
+            if (channel)
+            {
+
+               taskBuffer.update(channel.id);
+
+            }
+            else
+            {
+
+               data.task.invalid.push(dest);
+               taskBuffer.reduce();
+
+            }
+
+         }
+
+         // Resolve mentioned channel(s) cross server
+         if (dest.startsWith("cs#"))
+         {
+
+            const channel = data.message.client.channels.cache.get(dest.slice(3));
+            // console.log(`${dest.slice(3, -1)}`);
+
+            if (channel)
+            {
+
+               taskBuffer.update(channel.id);
+
+            }
+            else
+            {
+
+               data.task.invalid.push(dest);
+               taskBuffer.reduce();
+
+            }
+
+         }
+
+         // Invalid dests
+
+         if (
+            dest === "invalid"
+         )
+         {
+
+            data.color = "error";
+            data.text = ":warning:  Invalid auto translation request, Missing destination parameter";
+
+            // -------------
+            // Send message
+            // -------------
+
+            return sendMessage(data);
+
+         }
+         else if (
+            dest.startsWith("@") ||
+            !dest.startsWith("<") && dest !== "me"
+         )
+         {
+
+            data.task.invalid.push(dest);
+            taskBuffer.reduce();
+
+         }
+
+      });
+
+   }
+
    // --------------------------------------------
    // Validate Task(s) before sending to database
    // --------------------------------------------
 
-   const validateTask = function validateTask ()
+   function validateTask ()
    {
 
       // --------------
@@ -333,25 +382,31 @@ module.exports = function run (data)
       // ----------------------------------
       // Multiple dests set by non-manager
       // ----------------------------------
-      Override: if (!process.env.DISCORD_BOT_OWNER_ID.includes(data.message.author.id))
+
+      Override: if (data.task.for.length > 1)
       {
 
-         if (data.task.dest.length > 1 && !data.message.isManager)
+         if (!data.message.isDev)
          {
 
-            data.color = "error";
-            data.text =
-            ":cop::skin-tone-3:  You need to be a channel manager " +
-            "to auto translate this channel for others.";
+            if (!data.message.isGlobalChanManager)
+            {
 
-            // -------------
-            // Send message
-            // -------------
+               // console.log(`DEBUG: Is not global chan manager`);
+               data.color = "error";
+               data.text = ":police_officer:  This command is reserved for server admins & server channel managers";
 
-            return sendMessage(data);
+               // -------------
+               // Send message
+               // -------------
+
+               return sendMessage(data);
+
+            }
+            // console.log(`DEBUG: Is global chan manager`);
+            break Override;
 
          }
-         break Override;
 
       }
 
@@ -370,10 +425,7 @@ module.exports = function run (data)
       const forNames = data.cmd.for.join(",  ").replace("me", `<@${data.message.author.id}>`);
 
       data.color = "ok";
-      data.text =
-         ":white_check_mark:  Automatically translating messages " +
-         `from **\`${langFrom}\`** to **\`${langTo}\`** ` +
-         `for ${forNames}.`;
+      data.text = `:white_check_mark:  Automatically translating messages from **\`${langFrom}\`** to **\`${langTo}\`** for ${forNames}.`;
 
       // -------------
       // Send message
@@ -381,6 +433,6 @@ module.exports = function run (data)
 
       return sendMessage(data);
 
-   };
+   }
 
 };

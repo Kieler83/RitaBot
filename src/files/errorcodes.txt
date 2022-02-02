@@ -1,0 +1,18 @@
+Error Code Breakdown
+
+RA00000
+
+R - Rita Error
+
+C - Command Files
+S - Core Source Code Files
+
+0 - Folder Space in Alphabetical order
+
+00 - File in Alphabetical order
+
+00 - Error code in file
+
+
+RS00201 - Message containing only " !i" - Not able to transalte a blank message.
+RS00202 - Unable to react with a message contaninig !i due to lack of permission. 

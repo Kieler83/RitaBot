@@ -1,18 +1,22 @@
 // -----------------
 // Global variables
+// Err TAG: RB002??
 // -----------------
 
+/* eslint-disable sort-keys */
+/* eslint-disable consistent-return */
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING]
-const stripIndent = require("common-tags").stripIndent;
-const oneLine = require("common-tags").oneLine;
+const {stripIndent} = require("common-tags");
+const {oneLine} = require("common-tags");
 const auth = require("./core/auth");
 const logger = require("./core/logger");
 const messageHandler = require("./message");
 const db = require("./core/db");
-const setStatus = require("./core/status");
 const react = require("./commands/translation_commands/translate.react");
 const botVersion = require("../package.json").version;
-const botCreator = "Collaboration";
+const botCreator = "Rita Bot Project";
+const joinMessage = require("./commands/info_commands/join");
+const {MessageActionRow, MessageSelectMenu} = require("discord.js");
 
 // ----------
 // Core Code
@@ -46,8 +50,7 @@ exports.listen = function listen (client)
             "maxChains": 10,
             "maxEmbeds": 5,
             "maxMulti": 6,
-            "maxTasksPerChannel": 10,
-            "owner": auth.botOwner,
+            "maxTasksPerChannel": 15,
             "translateCmd": "!translate",
             "translateCmdShort": "!tr",
             "version": botVersion
@@ -56,78 +59,51 @@ exports.listen = function listen (client)
          if (!process.env.DISCORD_BOT_OWNER_ID)
          {
 
-            process.env.DISCORD_BOT_OWNER_ID = [];
+            process.env.DISCORD_BOT_OWNER_ID = "0";
 
          }
 
-         let shard = client.shard;
+         const singleShard = client.options.shardCount.toString();
 
-         if (!shard)
-         {
-
-            shard = {
-               "count": 1,
-               "id": 0
-            };
-
-         }
-
-         if (shard.id === 0)
-         {
-
-            console.log(stripIndent`
-            ----------------------------------------
-            @${client.user.username} Bot is now online
-            V.${config.version} | ID: ${client.user.id}
-            Made by: ${botCreator}
-            ----------------------------------------
-         `);
-
-         }
+         console.log(stripIndent`
+         ----------------------------------------
+         ${client.user.username} Bot is now online
+         V.${config.version} | ID: ${client.user.id}
+         Made by: ${botCreator}
+         ----------------------------------------`);
 
          console.log(oneLine`
-         Shard#${shard.id}:  ${shard.id + 1} / ${shard.count} online -
-         ${client.guilds.cache.size.toLocaleString()} guilds,
-         ${client.channels.cache.size.toLocaleString()} channels,
-         ${client.users.cache.size.toLocaleString()} users
-      `);
+         Shard: #${singleShard} Shards online -
+         ${client.guilds.cache.size.toLocaleString()} guilds.`);
 
-         setStatus(
-            client.user,
-            "online",
-            config
+         client.user.setPresence({
+            "activity": {
+               "name": "ritabot.gg | !tr help",
+               "type": "PLAYING"
+            },
+            "status": "online"
+         });
+
+         // ---------------------
+         // Log connection event
+         // ---------------------
+
+         console.log(stripIndent`
+            ----------------------------------------
+            All shards online, finalizing DB Setup.`);
+
+         logger(
+            "custom",
+            {
+               "color": "ok",
+               "msg": oneLine`
+               :wave:  **${client.user.username}**
+               - \`v.${botVersion}\` -
+               **${singleShard}** shards
+            `
+            }
          );
 
-         // ----------------------
-         // All shards are online
-         // ----------------------
-
-         if (shard.id === shard.count - 1)
-         {
-
-            // ---------------------
-            // Log connection event
-            // ---------------------
-
-            console.log(stripIndent`
-            ----------------------------------------
-            All shards are online, running intervals
-            ----------------------------------------
-         `);
-
-            logger(
-               "custom",
-               {
-                  "color": "ok",
-                  "msg": oneLine`
-               :wave:  **${client.user.username}**
-               is now online - \`v.${botVersion}\` -
-               **${shard.count}** shards
-            `
-               }
-            );
-
-         }
 
       }
    );
@@ -137,16 +113,22 @@ exports.listen = function listen (client)
    // -----------------
 
    client.on(
-      "message",
+      "messageCreate",
       (message) =>
       {
 
-         if (message.channel.type !== "dm")
+         if (message.channel.type !== "DM")
          {
 
             if (db.server_obj[message.guild.id])
             {
 
+               if (!db.server_obj[message.guild.id].db)
+               {
+
+                  return;
+
+               }
                if (config.translateCmdShort !== db.server_obj[message.guild.id].db.prefix)
                {
 
@@ -159,12 +141,23 @@ exports.listen = function listen (client)
             if (!message.author.bot)
             {
 
-               console.log(`${message.guild.name} - ${message.guild.id} - ${message.createdAt}`);
+               if (auth.messageDebug === "3")
+               {
+
+                  console.log(`MD3: ${message.guild.name} - ${message.guild.id} - ${message.createdAt} \nMesssage User - ${message.author.tag} \nMesssage Content - ${message.content}\n----------------------------------------`);
+
+               }
+               if (auth.messageDebug === "1")
+               {
+
+                  console.log(`MD1: ${message.guild.name} - ${message.guild.id} - ${message.createdAt}`);
+
+               }
                const col = "message";
                let id = "bot";
                db.increaseStatsCount(col, id);
 
-               if (message.channel.type === "text")
+               if (message.channel.type === "GUILD_TEXT")
                {
 
                   id = message.channel.guild.id;
@@ -258,6 +251,13 @@ exports.listen = function listen (client)
       )
    );
 
+   client.on("shardError", (error) =>
+   {
+
+      console.error("A websocket connection encountered an error:", error);
+
+   });
+
    // ------------------------
    // Proccess-related errors
    // ------------------------
@@ -267,6 +267,7 @@ exports.listen = function listen (client)
       (err) =>
       {
 
+         console.error("Uncaught Exception:", err);
          logger(
             "dev",
             err
@@ -282,9 +283,10 @@ exports.listen = function listen (client)
 
    process.on(
       "unhandledRejection",
-      (reason) =>
+      (reason, error) =>
       {
 
+         console.error("Unhandled promise rejection:", error);
          const err = `${`Unhandled Rejection` +
            `\nCaused By:\n`}${reason.stack}`;
          logger(
@@ -294,7 +296,7 @@ exports.listen = function listen (client)
          return logger(
             "error",
             err,
-            "unhandled"
+            "unhandled",
          );
 
       }
@@ -305,6 +307,7 @@ exports.listen = function listen (client)
       (warning) =>
       {
 
+         console.warn("warning:", warning);
          logger(
             "dev",
             warning
@@ -352,14 +355,25 @@ exports.listen = function listen (client)
 
    client.on(
       "guildDelete",
-      (guild) =>
+      async (guild) =>
       {
 
+         const owner = await guild.fetchOwner();
          logger(
             "guildLeave",
-            guild
+            guild, owner
          );
-         db.removeServer(guild.id);
+         db.updateServerTable(guild.id, "active", false, function error (err)
+         {
+
+            if (err)
+            {
+
+               return console.log("error", err, "command", guild.id);
+
+            }
+
+         });
 
       }
    );
@@ -368,7 +382,9 @@ exports.listen = function listen (client)
       "guildUnavailable",
       (guild) => logger(
          "warn",
-         `Guild unavailable: ${guild.id}`
+         `Guild unavailable: 
+         Guild ID: ${guild.id},
+         Shard: ${client.guilds.cache.get(guild.id).shardID + 1} / ${client.options.shardCount}`
       )
    );
 
@@ -378,20 +394,110 @@ exports.listen = function listen (client)
 
    client.on(
       "guildCreate",
-      (guild) =>
+      async (guild) =>
       {
 
+         const owner = await guild.fetchOwner();
          logger(
             "guildJoin",
-            guild
+            guild, owner
          );
+         db.servercount(guild);
          db.addServer(
             guild.id,
             config.defaultLanguage,
             db.Servers
          );
+         db.getServerInfo(
+            guild.id,
+            async function getServerInfo (server)
+            {
+
+               // console.log(`Server: ${guild.id} has a blacklisted status of: ${server[0].blacklisted}`);
+               logger(
+                  "activity",
+                  {
+                     "color": "ok",
+                     "msg": oneLine`**Server:** ${guild.id} has a blacklisted status of: **${server[0].blacklisted}**`
+                  }
+               );
+
+               if (server[0].blacklisted === true)
+               {
+
+                  logger(
+                     "activity",
+                     {
+                        "color": "warn",
+                        "msg": oneLine`**Server:** ${guild.id} has been kicked as it is blacklisted`
+                     }
+                  );
+
+                  await guild.leave();
+
+               }
+
+            }
+
+         // eslint-disable-next-line no-unused-vars
+         ).catch((err) => console.log("VALIDATION: New Server, No Blacklist History"));
+         db.updateServerTable(guild.id, "active", true, function error (err)
+         {
+
+            if (err)
+            {
+
+               return console.log("error", err, "command", guild.id);
+
+            }
+
+         });
+         // console.log(`DEBUG: Blacklist Check Complete`);
+
+         // ---------------------
+         // Send Welcome Message
+         // ---------------------
+
+         joinMessage(guild, config);
 
       }
    );
+
+   client.on("interactionCreate", async (interaction) =>
+   {
+
+      if (!interaction.isCommand())
+      {
+
+         return;
+
+      }
+
+      if (interaction.commandName === "ping")
+      {
+
+         const row = new MessageActionRow().
+            addComponents(new MessageSelectMenu().
+               setCustomId("select").
+               setPlaceholder("Nothing selected").
+               addOptions([
+                  {
+                     "label": "Select me",
+                     "description": "This is a description",
+                     "value": "first_option"
+                  },
+                  {
+                     "label": "You can select me too",
+                     "description": "This is also a description",
+                     "value": "second_option"
+                  }
+               ]),);
+
+         await interaction.reply({"content": "Pong!",
+            "components": [row]});
+
+      }
+
+   });
 
 };

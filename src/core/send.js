@@ -1,5 +1,7 @@
+/* eslint-disable complexity */
 // -----------------
 // Global variables
+// Err TAG: RS013??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -8,19 +10,142 @@
 /* eslint-disable vars-on-top */
 /* eslint-disable function-call-argument-newline */
 /* eslint-disable consistent-return */
+/* eslint-disable no-use-before-define */
 const colors = require("./colors");
 const fn = require("./helpers");
 const db = require("./db");
 const logger = require("./logger");
-const discord = require("discord.js");
-const webHookName = "Translator Messaging System";
+// const {MessageEmbed} = require("discord.js");
+// const embed = new MessageEmbed();
+// const discord = require("discord.js");
+const webHookName = "RITA";
 const error = require("./error");
+const auth = require("../core/auth");
+const {oneLine} = require("common-tags");
+const emojimap = require("emoji.json/emoji-compact.json");
 
 // -----------------
 // Permission Check
 // -----------------
 
-const checkPerms = function checkPerms (data, sendBox)
+function e50013 (data, eh, forwardChannel, sendData)
+{
+
+   let target = null;
+   if (eh === "o")
+   {
+
+      target = data.channel.id;
+
+   }
+   else
+   {
+
+      target = forwardChannel.id;
+
+   }
+   const col = "errorcount";
+   const id = data.message.guild.id || data.message.sourceID;
+   const tag = `${data.message.guild.owner.user.username}#${data.message.guild.owner.user.discriminator}`;
+   db.increaseServersCount(col, id);
+
+   db.checkTask(
+      data.message.guild.id || data.message.sourceID,
+      target,
+      eh,
+      async function error (err, res)
+      {
+
+         if (err)
+         {
+
+            return error(
+               err,
+               data
+            );
+
+         }
+
+         // -----------------------------
+         // Error if task does not exist
+         // -----------------------------
+
+         if (res.length < 1 || !res)
+         {
+
+            return console.log(`DEBUG: Tasks Error - Somthing has gone really really wrong`);
+
+         }
+
+         // ------------------------------------------------
+         // Otherwise, proceed to remove task from database
+         // ------------------------------------------------
+
+         if (eh === "o")
+         {
+
+            // console.log("DEBUG: Error 50013 - Origin");
+            await logger("custom", {
+               "color": "ok",
+               "msg": `:exclamation: Write Permission Error - ${eh} \n
+               Task ID: **${res[0].id || "Unknown"}** \n
+               Server: **${data.guild.name || "Unknown"}** \n
+               Channel: **${data.message.channel.name || "Unknown"}**\n
+               Chan ID: **${data.message.channel.id || "Unknown"}**\n
+               Server ID: **${data.message.guild.id || data.message.sourceID || "Zycore Broke It Again"}**\n
+               Owner: **${data.message.guild.owner || "Unknown"}**\n
+               Dscord Tag: **${tag || "Unknown"}**\n
+               The server owner has been notified. \n`
+            });
+
+            const writeErr =
+            `:no_entry:  **${data.message.client.user.username}** does not have permission to write in ` +
+            `the ${data.channel.name} channel on your server **` +
+            `${data.channel.guild.name}**. Please fix.`;
+            // console.log("DEBUG: Line 100 - Send.js");
+            return data.channel.guild.owner.
+               send(writeErr).
+               catch((err) => console.log("error", err, "warning", data.channel.guild.name));
+
+         }
+
+         if (eh === "d")
+         {
+
+            // console.log("DEBUG: Error 50013 - Destination");
+            await logger("custom", {
+               "color": "ok",
+               "msg": `:exclamation: Write Permission Error - Destination\n
+               Task ID: **${res[0].id || "Unknown"}** \n
+               Server: **${data.channel.guild.name || "Unknown"}** \n
+               Channel: **${forwardChannel.name || "Unknown"}**\n
+               Chan ID: **${forwardChannel.id || "Unknown"}**\n
+               Server ID: **${data.message.guild.id || data.message.sourceID || "Zycore Broke It Again"}**\n
+               Owner: **${data.message.guild.owner || "Unknown"}**\n
+               Dscord Tag: **${tag || "Unknown"}**\n
+               The server owner has been notified. \n`
+            });
+
+            const writeErr =
+            `:no_entry:  **${data.message.client.user.username}** does not have permission to write in ` +
+            `the ${forwardChannel.name} channel on your server **` +
+            `${sendData.channel.guild.name}**. Please fix.`;
+            // console.log("DEBUG: Line 128 - Send.js - Owner Check");
+            return sendData.channel.guild.owner.
+               send(writeErr).
+               catch((err) => console.log("error", err, "warning", sendData.channel.guild.name));
+
+         }
+
+      }
+   );
+
+}
+// -----------------
+// Permission Check
+// -----------------
+
+async function checkPerms (data, sendBox)
 {
 
    // ------------------------------------------------------------------------
@@ -30,19 +155,23 @@ const checkPerms = function checkPerms (data, sendBox)
    // eslint-disable-next-line complexity
    {
 
+
       var sendData = {
          "attachments": data.message.attachments,
-         "bot": data.bot,
+         "bot": data.message.client.user,
          "channel": data.message.channel,
          "color": data.color,
          "config": data.config,
+         "detectedLang": data.detectedLang,
          "embeds": data.message.embeds,
          "fields": data.fields,
          "footer": data.footer,
          "forward": data.forward,
          "guild": data.message.guild,
          "message": data.message,
-         "origin": null,
+         "origin": data.message.channel,
+         "reaction": data.reaction,
+         "temp": null,
          "text": data.text,
          "title": data.title
       };
@@ -56,26 +185,27 @@ const checkPerms = function checkPerms (data, sendBox)
    if (!data.canWrite)
    {
 
-      console.log("DEBUG: Perms Error, Write Restricted 1");
-      console.log(`DEBUG: Perm Check 1 ${data.canWrite}`);
+      // console.log("DEBUG: Perms Error, Write Restricted 1");
+      // console.log(`DEBUG: Perm Check 1 ${data.canWrite}`);
       const writeErr =
-         `:no_entry:  **${data.bot.username}** does not have permission to write in ` +
+         `:no_entry:  **${data.message.client.user.username}** does not have permission to write in ` +
          `the ${sendData.channel.id} channel on your server **` +
          `${sendData.channel.guild.name}**. Please fix.`;
-
+      console.log("DEBUG: Line 189 - Send.js - Owner Check");
       return sendData.channel.guild.owner.
          send(writeErr).
          catch((err) => console.log("error", err, "warning", data.message.guild.name));
 
    }
-   console.log(`DEBUG: Perm Check 2 ${data.canWrite}`);
+   // console.log(`DEBUG: Perm Check 2 ${data.canWrite}`);
 
    if (data.forward)
    {
 
-      const forwardChannel = data.client.channels.cache.get(data.forward);
+      const forwardChannel = data.message.client.channels.cache.get(data.forward);
 
       if (forwardChannel)
+      // if (forwardChannel || data.forward.includes("@"))
       {
 
          // ----------------------------------------------
@@ -83,12 +213,13 @@ const checkPerms = function checkPerms (data, sendBox)
          // ----------------------------------------------
 
          let canWriteDest = true;
+         const user = await data.message.channel.guild.members.fetch(data.message.client.user.id);
 
-         if (forwardChannel.type === "text")
+         if (forwardChannel.type === "GUILD_TEXT")
          {
 
             canWriteDest = fn.checkPerm(
-               forwardChannel.guild.me,
+               user,
                forwardChannel,
                "SEND_MESSAGES"
             );
@@ -127,26 +258,7 @@ const checkPerms = function checkPerms (data, sendBox)
             // Notify server owner if bot cannot write to forwarding channel
             // --------------------------------------------------------------
 
-            console.log("DEBUG: Error 50013 - Destination");
-            logger("custom", {
-               "color": "ok",
-               "msg": `:exclamation: Write Permission Error - Destination\n
-                  Server: **${data.channel.guild.name}** \n
-                  Channel: **${forwardChannel.name}**\n
-                  Chan ID: **${forwardChannel.id}**\n
-                  Owner: **${data.channel.guild.owner}**\n
-                  The server owner has been notified . \n`
-            });
-
-            console.log("DEBUG: Perms Error, Write Restricted 2");
-            const writeErr =
-            `:no_entry:  **${data.bot.username}** does not have permission to write in ` +
-            `the ${forwardChannel.name} channel on your server **` +
-            `${sendData.channel.guild.name}**. Please fix.`;
-
-            return sendData.channel.guild.owner.
-               send(writeErr).
-               catch((err) => console.log("error", err, "warning", sendData.channel.guild.name));
+            return e50013(data, "d", forwardChannel, sendData);
 
          }
 
@@ -177,12 +289,12 @@ const checkPerms = function checkPerms (data, sendBox)
    if (data.showAuthor)
    {
 
-      sendData.author = data.message.author;
+      sendData.message.author = data.message.author;
 
-      if (data.author)
+      if (data.message.author)
       {
 
-         sendData.author = data.author;
+         sendData.message.author = data.message.author;
 
       }
 
@@ -194,13 +306,45 @@ const checkPerms = function checkPerms (data, sendBox)
 
    return sendBox(sendData);
 
-};
+}
+
+// ----------------------
+// Flag Persist Function
+// ----------------------
+
+function reactpersist (data, msg)
+{
+
+
+   if (data.reaction === true && data.message.server[0].reactpersist === false || data.message.server[0].reactpersist === 0)
+   {
+
+      // console.log("DEBUG: Delete reacted Message");
+      try
+      {
+
+         setTimeout(() => msg.delete(), auth.time.long);
+
+      }
+      catch (err)
+      {
+
+         console.log(
+            "Command Message Deleted Error, send.js = Line 327",
+            err
+         );
+
+      }
+
+   }
+
+}
 
 // ----------------------------
 // Embedded Variable "On" Code
 // ----------------------------
 
-const embedOn = function embedOn (data)
+function embedOn (data)
 {
 
    // -----------------------------------------------
@@ -208,7 +352,7 @@ const embedOn = function embedOn (data)
    // Only if content is forwared to another channel
    // -----------------------------------------------
 
-   const sendEmbeds = function sendEmbeds (data)
+   function sendEmbeds (data)
    {
 
       if (data.forward && data.embeds && data.embeds.length > 0)
@@ -239,14 +383,15 @@ const embedOn = function embedOn (data)
 
       }
 
-   };
+   }
 
    // -------------------
    // Resend attachments
    // -------------------
 
-   const sendAttachments = function sendAttachments (data)
+   function sendAttachments (data)
    {
+
 
       if (!data.attachments)
       {
@@ -254,11 +399,25 @@ const embedOn = function embedOn (data)
          return;
 
       }
-      let attachments = data.attachments.array();
+      let attachments = Array.from(data.attachments.values());
 
       if (attachments && attachments.length > 0)
       {
 
+         if (data.origin.id === data.forward)
+         {
+
+            if (data.message.content.startsWith("https://tenor.com/"))
+            {
+
+               // console.log("DEBUG: Embed ON: Same channel GIF translation, GIF ignored");
+               return;
+
+            }
+            // console.log("DEBUG: Embed On: Same channel image translation, Image ignored");
+            return;
+
+         }
          const maxAtt = data.config.maxEmbeds;
 
          if (attachments.length > maxAtt)
@@ -278,50 +437,86 @@ const embedOn = function embedOn (data)
          for (let i = 0; i < attachments.length; i += 1)
          {
 
+            // eslint-disable-next-line no-unused-vars
+            /*
             const attachmentObj = new discord.MessageAttachment(
                attachments[i].url,
                attachments[i].name
             );
-            data.channel.send(`**${messageData.author.username}** sent a file:`, attachmentObj);
+            */
+            data.channel.send({"content": `**${data.message.author.username}** sent a file:`,
+               "files": [attachments[i].url]});
 
          }
 
       }
 
-   };
+   }
 
    // ----------
    // Send data
    // ----------
 
-   const sendBox = function sendBox (data)
+   function sendBox (data)
    {
 
 
       /*
-      If (data.author)
+      If (data.message.author)
       {
-         data.author = {
-            name: data.author.username,
+         data.message.author = {
+            name: data.message.author.username,
             //eslint-disable-next-line camelcase
-            icon_url: data.author.displayAvatarURL()
+            icon_url: data.message.author.displayAvatarURL()
          };
       }*/
 
+      if (data.origin)
+      {
+
+         if (data.origin.id === data.forward)
+         {
+
+            if (data.message.content.startsWith("https://tenor.com/"))
+            {
+
+               // console.log("DEBUG: Embed ON: Same channel GIF translation, GIF ignored");
+               return;
+
+            }
+            if (data.message.content.startsWith("<a:") || data.message.content.startsWith("<:") && data.message.content.endsWith(">"))
+            {
+
+               // console.log("DEBUG: Embed ON: Same channel Single Emoji translation, Emoji ignored");
+               return;
+
+            }
+            // var newdata = data.message.content.replace("'", " ");
+
+            if (emojimap.indexOf(data.message.content) !== -1)
+            {
+
+               return;
+
+            }
+
+         }
+
+      }
       if (data.text && data.text.length > 1)
       {
 
          {
 
-            if (!data.author)
+            if (!data.message.author)
             {
 
-               console.log("DEBUG: Is bot.author - embed on");
+               // console.log("DEBUG: Is bot.author - embed on");
                // eslint-disable-next-line no-redeclare
                var embed = {
                   "author": {
-                     "icon_url": data.bot.displayAvatarURL(),
-                     "name": data.bot.username
+                     "icon_url": data.message.client.user.displayAvatarURL(),
+                     "name": data.message.client.user.username
                   },
                   "color": colors.get(data.color),
                   "description": data.text,
@@ -334,12 +529,12 @@ const embedOn = function embedOn (data)
             else
             {
 
-               console.log("DEBUG: Is data.author - embed on");
+               // console.log("DEBUG: Is data.message.author - embed on");
                // eslint-disable-next-line no-redeclare
                var embed = {
                   "author": {
-                     "icon_url": data.author.displayAvatarURL(),
-                     "name": data.author.username
+                     "icon_url": data.message.author.displayAvatarURL(),
+                     "name": data.message.author.username
                   },
                   "color": colors.get(data.color),
                   "description": data.text,
@@ -352,47 +547,79 @@ const embedOn = function embedOn (data)
 
          }
 
-         data.channel.send({
-
-            embed
-         }).then(() =>
+         data.channel.send({"embeds": [embed]}).then((msg) =>
          {
 
             sendEmbeds(data);
             sendAttachments(data);
+            reactpersist(data, msg);
 
          }).
             catch((err) =>
             {
 
-               let errMsg = err;
+               let errMsg = null;
 
-               // ------------------------
-               // Error for long messages
-               // ------------------------
+               // -------
+               // Errors
+               // -------
 
+               // console.log(`DEBUG: Error Code ${err.code}`);
                if (err.code && err.code === error.content)
                {
 
                   data.channel.send(":warning:  Message is too long.");
 
                }
+               // console.log("DEBUG: Not 50035");
 
-               if (err.code && err.code === error.perm || error.access)
+               if (err.code && err.code === error.perm || err.code === error.access)
                {
 
-                  console.log("DEBUG: Error 50013 - Origin");
+                  return e50013(data, "o");
+
+               }
+               // console.log("DEBUG: Not 50013 or 50001");
+
+               if (err.code && err.code === error.fileTooLarge)
+               {
+
+                  // console.log("DEBUG: Error 40005");
                   return logger("custom", {
                      "color": "ok",
-                     "msg": `:exclamation: Write Permission Error - Origin \n
+                     "msg": `:exclamation: File To Large \n
                   Server: **${data.guild.name}** \n
                   Channel: **${data.channel.name}**\n
                   Chan ID: **${data.channel.id}**\n
-                  Owner: **${data.channel.guild.owner}**\n
-                  The server owner has been notified. \n`
-                  });
+                  Owner: **${data.message.guild.owner}**\n`
+                  }).catch((err) => console.log(
+                     "error",
+                     err,
+                     "warning"
+                  ));
 
                }
+               // console.log("DEBUG: Not 40035");
+
+               if (err.code && err.code === error.unknownUser || err.code === error.unknownMember || err.code === error.invalidRecipient)
+               {
+
+                  // console.log(`DEBUG: Error ${err.code}`);
+                  return logger("custom", {
+                     "color": "ok",
+                     "msg": `:exclamation: Unknown User / Member / Recipient \n
+                  Server: **${data.guild.name}** \n
+                  Channel: **${data.channel.name}**\n
+                  Chan ID: **${data.channel.id}**\n
+                  Owner: **${data.channel.guild.owner}**\n`
+                  }).catch((err) => console.log(
+                     "error",
+                     err,
+                     "warning"
+                  ));
+
+               }
+               // console.log("DEBUG: Not 10013 or 10007 or 50033");
 
                // -----------------------------------------------------------
                // Handle error for users who cannot recieve private messages
@@ -403,6 +630,7 @@ const embedOn = function embedOn (data)
 
                   const badUser = data.channel.recipient;
                   errMsg = `@${badUser.username}#${badUser.discriminator}\n${err}`;
+                  const user = data.message.guild.members.cache.get(badUser.id);
 
                   db.removeTask(data.origin.id, `@${badUser.id}`, function error (err)
                   {
@@ -414,39 +642,61 @@ const embedOn = function embedOn (data)
 
                      }
 
-                     return data.origin.send(`:no_entry: User ${badUser} cannot recieve direct messages ` +
-                           `by bot because of **privacy settings**.\n\n__Auto ` +
+                     if (!user)
+                     {
+
+                        return data.origin.send(`:no_entry: User ${badUser} cannot recieve direct messages as they have left the server`);
+
+                     }
+                     else if (user)
+                     {
+
+                        return data.origin.send(`:no_entry: User ${badUser} cannot recieve direct messages ` +
+                           `from RITA because of **privacy settings**.\n\n__Auto ` +
                            `translation has been stopped. To fix this:__` +
                            "```prolog\nServer > Privacy Settings > " +
                            "'Allow direct messages from server members'\n```");
 
-                  });
+                     }
+
+                  }).catch((err) => console.log(
+                     "error",
+                     err,
+                     "warning"
+                  ));
 
                }
+               // console.log("DEBUG: Not 50007");
+               console.log(`DEBUG: No catch for this erorr - Code:${err.code}`);
 
-               logger("error", errMsg, "warning", data.message.channel.guild.name);
+               logger("error", errMsg, "warning", data.channel.guild.name);
 
-            });
+            }).
+            catch((err) => console.log(
+               "error",
+               err,
+               "warning"
+            ));
 
       }
-      else if (data.attachments.array().length > 0)
+      else if (data.attachments.size > 0)
       {
 
          sendAttachments(data);
 
       }
 
-   };
+   }
 
    return checkPerms(data, sendBox);
 
-};
+}
 
 // -----------------------------
 // Embedded Variable "Off" Code
 // -----------------------------
 
-const embedOff = function embedOff (data)
+function embedOff (data)
 {
 
    // -------------
@@ -455,13 +705,13 @@ const embedOff = function embedOff (data)
    function createFiles (dataAttachments)
    {
 
-      if (!dataAttachments && !dataAttachments.array().length > 0)
+      if (!dataAttachments && !dataAttachments.values().array().length > 0)
       {
 
          return;
 
       }
-      const attachments = dataAttachments.array();
+      const attachments = Array.from(dataAttachments.values());
       const files = [];
       if (attachments && attachments.length > 0)
       {
@@ -469,11 +719,7 @@ const embedOff = function embedOff (data)
          for (let i = 0; i < attachments.length; i += 1)
          {
 
-            const attachmentObj = new discord.MessageAttachment(
-               attachments[i].url,
-               attachments[i].name
-            );
-            files.push(attachmentObj);
+            files.push(attachments[i].url);
 
          }
 
@@ -489,13 +735,92 @@ const embedOff = function embedOff (data)
    function sendWebhookMessage (webhook, data)
    {
 
+      // Same channel always set to disable all pings from RITA
+      if (data.origin.id === data.forward && data.message.server[0].servertags === "none")
+      {
+
+         // console.log("DEBUG: Same Dest & None Ping");
+         serverPings = [];
+
+      }
+      // Cross channel allows all pings from RITA
+      else if (data.message.server[0].servertags === "none")
+      {
+
+         // console.log("DEBUG: Cross Channel & None Ping");
+         serverPings = ["everyone", "users"];
+
+      }
+
+      // Same channel always set to disable all pings from RITA
+      if (data.origin.id === data.forward && data.message.server[0].servertags === "everyone")
+      {
+
+         // console.log("DEBUG: Same Dest & None Ping");
+         serverPings = [];
+
+      }
+      // Cross channel disables everyone and here pings
+      else if (data.message.server[0].servertags === "everyone")
+      {
+
+         // console.log("DEBUG: Cross Channel & None Ping");
+         serverPings = ["users"];
+
+      }
+
+      // Same channel and cross channel disables all pings
+      if (data.origin.id === data.forward || data.message.server[0].servertags === "all")
+      {
+
+         // console.log("DEBUG: Same Dest & Cross Channel & None Ping");
+         serverPings = [];
+
+      }
+
       let files = null;
 
       if (data.attachments)
       {
 
+         if (data.origin.id === data.forward)
+         {
+
+            if (data.message.content.startsWith("https://tenor.com/"))
+            {
+
+               // console.log("DEBUG: Embed ON: Same channel GIF translation, GIF ignored");
+               return;
+
+            }
+            if (data.message.content.startsWith("<a:") || data.message.content.startsWith("<:") && data.message.content.endsWith(">"))
+            {
+
+               // console.log("DEBUG: Embed ON: Same channel Single Emoji translation, Emoji ignored");
+               return;
+
+            }
+            // var newdata = data.message.content.replace("'", " ");
+
+            if (emojimap.indexOf(data.message.content) !== -1)
+            {
+
+               return;
+
+            }
+
+         }
+
          if (data.attachments.size !== 0)
          {
+
+            if (data.origin.id === data.forward)
+            {
+
+               // console.log("DEBUG: Embed Off: Same channel image translation, Image ignored");
+               return;
+
+            }
 
             files = createFiles(data.attachments);
 
@@ -511,44 +836,86 @@ const embedOff = function embedOff (data)
       if (files !== null && data.text === undefined)
       {
 
-         return webhook.send(null, {
-            "avatarURL": messageData.author.displayAvatarURL(),
+         return webhook.send({
+            "allowedMentions": {
+               "parse": serverPings
+            },
+            "avatarURL": `https://cdn.discordapp.com/avatars/${data.message.author.id}/${data.message.author.avatar}`,
             files,
-            "username": messageData.author.username
-         });
+            "username": data.message.author.username
+         }).catch((err) => console.log("error", err, "send", data.message.guild.name));
+
+      }
+
+      if (data.message.server[0].langdetect === true || data.message.server[0].langdetect === 1)
+      {
+
+         if (!data.reaction)
+
+         {
+
+            data.temp = data.text;
+            data.text = `\n${oneLine`
+               \`Source Lang: ${data.detectedLang}\`
+               `}`;
+            data.text += `\n${oneLine`
+               \`Message\`: ${data.temp}
+               `}`;
+            // data.text += data.temp;
+
+         }
 
       }
 
       {
 
-         if (!data.author)
+         if (!data.message.author)
          {
 
-            console.log("DEBUG: Is bot.author embed off");
-            webhook.send(data.text, {
+            // console.log("DEBUG: Is bot.author embed off");
+            webhook.send({
                // If you get a error at the below line then the bot does not have write permissions.
 
-               "avatarURL": data.bot.displayAvatarURL(),
+               "allowedMentions": {
+                  "parse": serverPings
+               },
+               "avatarURL": `https://cdn.discordapp.com/avatars/${data.message.client.user.id}/${data.message.client.user.avatar}`,
+               "content": data.text,
                files,
-               "username": data.bot.username || data.message
+               "username": data.message.client.user.username || data.message
+            }).then((msg) =>
+            {
+
+               reactpersist(data, msg);
+
             });
 
          }
          else
          {
 
-            console.log("DEBUG: Is data.author embed off");
-            webhook.send(data.text, {
+            // console.log("DEBUG: Is data.message.author embed off");
+            webhook.send({
                // If you get a error at the below line then the bot does not have write permissions.
 
-               "avatarURL": data.author.displayAvatarURL(),
+               "allowedMentions": {
+                  "parse": serverPings
+               },
+               "avatarURL": `https://cdn.discordapp.com/avatars/${data.message.author.id}/${data.message.author.avatar}`,
+               "content": data.text,
                files,
-               "username": data.author.username || data.message
+               "username": data.message.author.username || data.message
+            }).then((msg) =>
+            {
+
+               reactpersist(data, msg);
+
             });
 
          }
 
       }
+
 
    }
 
@@ -556,16 +923,17 @@ const embedOff = function embedOff (data)
    // Resend attachments
    // -------------------
 
-   const sendAttachments = function sendAttachments (data)
+   // connected to DM tasks
+   function sendAttachments (data)
    {
 
-      if (!data.attachments && !data.attachments.array().length > 0)
+      if (!data.attachments && !data.attachments.value().array().length > 0)
       {
 
          return;
 
       }
-      let attachments = data.attachments.array();
+      let attachments = Array.from(data.attachments.values());
 
       if (data.forward && attachments && attachments.length > 0)
       {
@@ -589,23 +957,19 @@ const embedOff = function embedOff (data)
          for (let i = 0; i < attachments.length; i += 1)
          {
 
-            const attachmentObj = new discord.MessageAttachment(
-               attachments[i].url,
-               attachments[i].name
-            );
-            data.channel.send(attachmentObj);
+            data.channel.send({"files": [attachments[i].url]});
 
          }
 
       }
 
-   };
+   }
 
    // ---------------------
    // Send Data to Channel
    // ---------------------
 
-   const sendBox = function sendBox (data)
+   function sendBox (data)
    {
 
       const channel = data.channel;
@@ -629,7 +993,7 @@ const embedOff = function embedOff (data)
       if (!avatarURL)
       {
 
-         avatarURL = data.author;
+         avatarURL = data.message.author;
 
       }
 
@@ -637,16 +1001,21 @@ const embedOff = function embedOff (data)
       // Webhook Creation and Sending
       // -----------------------------
 
-      if (data.channel.type === "dm")
+      if (data.channel.type === "DM")
       {
 
-         const embed = new discord.MessageEmbed().
-            setAuthor(data.author.username, data.author.displayAvatarURL()).
-            setColor(colors.get(data.color)).
-            setDescription(data.text).
-            setFooter(data.footer.text);
+         // console.log("DEBUG: Line 946 - Send.js");
+         var embed = {
+            "author": {
+               "icon_url": data.message.client.user.displayAvatarURL(),
+               "name": data.message.client.user.username
+            },
+            "color": colors.get(data.color),
+            "description": data.text,
+            "footer": data.footer
+         };
          sendAttachments(data);
-         data.channel.send({embed});
+         data.channel.send({"embeds": [embed]});
 
       }
 
@@ -658,13 +1027,29 @@ const embedOff = function embedOff (data)
             {
 
                // You can rename 'Webhook' to the name of your bot if you like, people will see if under the webhooks tab of the channel.
-               existingWebhook = webhooks.find((x) => x.name === webHookName);
-               const webHookURL = "https://ritabot.gg/index/images/favicon.png";
+               const existingWebhook = webhooks.find((x) => x.name === webHookName);
+               const oldWebhook2 = webhooks.find((x) => x.name === "RITA Messaging-System");
+               const oldWebhook1 = webhooks.find((x) => x.name === "RITA Messaging System");
+               const avatar = "https://ritabot.gg/index/images/favicon.png";
 
+               if (oldWebhook1)
+               {
+
+                  oldWebhook1.delete(`Requested by RITA`);
+                  // console.log("DEBUG: Successfully deleted Old RITA Webhook from channel.");
+
+               }
+               else if (oldWebhook2)
+               {
+
+                  oldWebhook2.delete(`Requested by RITA`);
+                  // console.log("DEBUG: Successfully deleted Old RITA Webhook from channel.");
+
+               }
                if (!existingWebhook)
                {
 
-                  channel.createWebhook(webHookName, webHookURL).
+                  channel.createWebhook(webHookName, {avatar}).
                      then((newWebhook) =>
                      {
 
@@ -685,104 +1070,23 @@ const embedOff = function embedOff (data)
 
       }
 
-   };
+   }
 
 
    checkPerms(data, sendBox);
 
-};
+}
 
-// ---------------------
-// Send Data to Channel
-// ---------------------
+// -----------------
+// Primary Fucntion
+// -----------------
 
 // eslint-disable-next-line complexity
 module.exports = function run (data)
 {
 
-   const before = Date.now();
+   // Const before = Date.now();
 
-   global.messageData = data.message;
-   // ----------------------------
-   // Regex Statments for Emoji's
-   // ----------------------------
-
-   function languageRegex (data)
-
-   {
-
-      // Remove Whitespaces
-      data.text = data.text.replace(/<.+?>/g, (tag) => tag.replace(/\s+/g, ""));
-      //  Remove translated numeral keywords
-      data.text = data.text.replace(/millions/gmi, ``);
-      data.text = data.text.replace(/milioni/gmi, ``);
-      // Commas Replacement
-      const regex10 = /(?<=<[^<>]*?),+(?=[^<>]*>)/gm;
-      data.text = data.text.replace(regex10, ``);
-      // Period Replacement
-      const regex11 = /(?<=<[^<>]*?)\.+(?=[^<>]*>)/gm;
-      data.text = data.text.replace(regex11, ``);
-      //  Remove Exclamation marks
-      data.text = data.text.replace(/<@!/gmi, `<@`);
-      data.text = data.text.replace(/<!@/gmi, `<@`);
-      //  Change formatted special characters to normal
-      data.text = data.text.replace(/：/gmi, ":");
-      data.text = data.text.replace(/，/gmi, ", ");
-      data.text = data.text.replace(/、/gmi, ", ");
-      data.text = data.text.replace(/！/gmi, "");
-      data.text = data.text.replace(/<A/gmi, "<a");
-      data.text = data.text.replace(/>/gmi, ">");
-      data.text = data.text.replace(/</gm, "<");
-      data.text = data.text.replace(/<А/gmi, "<a");
-      data.text = data.text.replace(/＆/gmi, ``);
-      data.text = data.text.replace(/></gm, `> <`);
-      data.text = data.text.replace(/＃/gmi, "#");
-      data.text = data.text.replace(/＃/gmi, "#");
-      data.text = data.text.replace(/((\s?)(\*)(\s?))/gmis, "*");
-      data.text = data.text.replace(/(?<=<[^<>]*?)([0-9]*)\s*@+(?=[^<>]*>)/gmi, "@$1");
-
-   }
-
-   if (data.author)
-   {
-
-      if (data.text)
-      {
-
-         languageRegex(data);
-         data.text = data.text.replace(/<А/gmi, "<a");
-         if (data.text.includes("<А" || "<a"))
-         {
-
-            const regex1 = /<(a)([:?\s:\s[a-z0-9ЁёА-я_A-Z\s\u00C0-\u017F]+\S*:\s*)([0-9\s]+)>/gmi;
-            const str1 = data.text;
-            const subst1 = `<a:customemoji:$3>`;
-            data.text = str1.replace(regex1, subst1);
-
-         }
-         //   If a combination of animated emojis and normal custom emojis
-         if (!data.text.includes("<a") && data.text.includes("<:"))
-         {
-
-            const subst5 = "<:customemoji:$3>";
-            const str5 = data.text;
-            const regx5 = /<:([:?\s:\s[a-z0-9ЁёА-я_A-Z\s\u00C0-\u017F]+\S*(:)\s*)([0-9\s]+)>/gmi;
-            data.text = str5.replace(regx5, subst5);
-
-         }
-         if (data.text.includes("<a") && data.text.includes("<:"))
-         {
-
-            const regex20 = /<(a)([:?\s:\s[a-z0-9ЁёА-я_A-Z\s\u00C0-\u017F]+\S*:\s*)([0-9\s]+)>/gmi;
-            const regex30 = /<:([:?\s:\s[a-z0-9ЁёА-я_A-Z\s\u00C0-\u017F]+\S*(:)\s*)([0-9\s]+)>/gmi;
-            data.text.replace(regex20, "<a:customemoji:$3>");
-            data.text.replace(regex30, "<:customemoji:$3>");
-
-         }
-
-      }
-
-   }
 
    // Const guildValue = data.message.guild.id;
    data.channel = data.message.channel;
@@ -790,63 +1094,76 @@ module.exports = function run (data)
    // --------------------
    // Primary If Statment
    // --------------------
-   const embedstyle = db.server_obj[data.message.guild.id].db.embedstyle;
-
-   if (embedstyle === "on")
+   try
    {
 
-      console.log("DEBUG: Embed on");
-
-      const col = "embedon";
-      let id = "bot";
-      db.increaseStatsCount(col, id);
-
-      if (data.message.channel.type === "text")
+      const embedstyle = data.message.server[0].embedstyle;
+      if (embedstyle === "on")
       {
 
-         id = data.message.channel.guild.id;
+         // console.log("DEBUG: Embed on");
+
+         const col = "embedon";
+         let id = "bot";
+         db.increaseStatsCount(col, id);
+
+         if (data.message.channel.type === "text")
+         {
+
+            id = data.message.channel.guild.id;
+
+         }
+
+         db.increaseStatsCount(col, id);
+
+         return embedOn(data);
+
+      }
+      else if (data.message.guild.me.permissions.has("MANAGE_WEBHOOKS"))
+      {
+
+         // console.log("DEBUG: Embed off");
+
+         const col = "embedoff";
+         let id = "bot";
+         db.increaseStatsCount(col, id);
+
+         if (data.message.channel.type === "text")
+         {
+
+            id = data.message.channel.guild.id;
+
+         }
+
+         db.increaseStatsCount(col, id);
+
+         return embedOff(data);
 
       }
 
-      db.increaseStatsCount(col, id);
+      // Const after = Date.now();
+      // Console.log(after - before);
 
-      return embedOn(data);
+      // console.log("DEBUG: Perms Error");
+      data.text = `:warning: ${data.message.client.user.username} does not have sufficient permissions to send Webhook Messages. Please give ${data.message.client.user.username} the \`MANAGE_WEBHOOKS\` permission.`;
+      data.color = "warn";
+
+      return data.channel.send({"embed": {
+         "color": colors.get(data.color),
+         "description": data.text
+
+      }});
 
    }
-   else
-   if (data.message.guild.me.permissions.has("MANAGE_WEBHOOKS"))
+   catch (err)
    {
 
-      console.log("DEBUG: Embed off");
-
-      const col = "embedoff";
-      let id = "bot";
-      db.increaseStatsCount(col, id);
-
-      if (data.message.channel.type === "text")
-      {
-
-         id = data.message.channel.guild.id;
-
-      }
-
-      db.increaseStatsCount(col, id);
-
-      return embedOff(data);
+      // console.log(
+      //   `CRITICAL: Send Error, send.js = Run/Line 1032 - SERVER: ${data.message.guild.id}`,
+      //   err
+      // );
+      // console.log(`CRITICAL: Send Error, send.js = Run/Line 1032 - SERVER: ${data.message.guild.id}, DEST CHAN: ${data.forward}`);
 
    }
-
-   const after = Date.now();
-   console.log(after - before);
-
-   console.log("DEBUG: Perms Error");
-   data.text = `:warning: ${data.bot.username} does not have sufficient permissions to send Webhook Messages. Please give ${data.bot.username} the \`MANAGE_WEBHOOKS\` permission.`;
-   data.color = "warn";
-
-   return data.channel.send({"embed": {
-      "color": colors.get(data.color),
-      "description": data.text
-
-   }});
 
 };

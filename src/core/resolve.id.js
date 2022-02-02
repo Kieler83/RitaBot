@@ -1,5 +1,6 @@
 // -----------------
 // Global variables
+// Err TAG: RS012??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -43,7 +44,7 @@ exports.idPure = function idPure (id)
 exports.getChName = function getChName (channel)
 {
 
-   if (channel.type === "dm")
+   if (channel.type === "DM")
    {
 
       return channel.recipient.username;

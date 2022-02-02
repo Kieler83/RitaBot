@@ -1,5 +1,6 @@
 // -----------------
 // Global variables
+// Err TAG: RB004??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING]
@@ -20,7 +21,7 @@ const bot = path.join(
 // Shard Manager
 // --------------
 
-let shards = 2;
+let shards = "auto";
 
 if (auth.shards)
 {

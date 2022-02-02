@@ -1,5 +1,6 @@
 // -----------------
 // Global variables
+// Err TAG: RC302??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -19,7 +20,7 @@ const bot2bot = function bot2bot (data)
    if (commandVariable1 === "on" || commandVariable1 === "off")
    {
 
-      console.log(`DEBUG: bot2bot variable ${commandVariable1}`);
+      // console.log(`DEBUG: bot2bot variable ${commandVariable1}`);
       return db.updateBot2BotVar(
          data.message.channel.guild.id,
          commandVariable1,
@@ -80,18 +81,14 @@ module.exports = function run (data)
    // Command allowed by admins only
    // -------------------------------
 
-   Override: if (!process.env.DISCORD_BOT_OWNER_ID.includes(data.message.author.id))
+   Override: if (!data.message.isDev)
    {
 
-      if (data.message.isAdmin === false)
+      if (!data.message.isAdmin)
       {
 
-         {
-
-            data.color = "warn";
-
-         }
-         data.text = ":cop:  This command is reserved for server adminis.";
+         data.color = "warn";
+         data.text = ":police_officer:  This command is reserved for server admins.";
 
          // -------------
          // Send message

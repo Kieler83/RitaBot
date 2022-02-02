@@ -1,6 +1,6 @@
-
 // -----------------
 // Global variables
+// Err TAG: RS015??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -9,34 +9,189 @@ const translate = require("rita-google-translate-api");
 const db = require("./db");
 const botSend = require("./send");
 const fn = require("./helpers");
+const auth = require("../core/auth");
+const filter = require("../core/profanity");
 
 // ------------------------------------------
 // Fix broken Discord tags after translation
-// (Emojis, Mentions, Channels)
+// (Emojis, Mentions, Channels, Urls)
 // ------------------------------------------
 
 
-const translateFix = function translateFix (string)
+function discordPatch (string)
 {
 
-   const normal = /(<[@#!$%&*])\s*/gim;
-   const nick = /(<[@#!$%&*]!)\s*/gim;
-   const role = /(<[@#!$%&*]&)\s*/gim;
+   // eslint-disable-next-line no-useless-escape
+   const urlRegex = /(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?/giu;
 
-   return string.replace(
-      normal,
-      "$1"
-   ).
-      replace(
-         nick,
-         "$1"
-      ).
-      replace(
-         role,
-         "$1"
-      );
+   // let regexFix = string.replace(/:[^\s]*?:/gmi);
 
-};
+   let match = string.match(/<.*?>/gmiu);
+   let everyonePing = string.match(/@everyone|@here/giu);
+   let urlMatch = string.match(urlRegex);
+   let codeMatch = string.match(/`[^`]+`/g);
+   let bigBlock = string.match(/```[^`]+```/g);
+
+   let regexFix = string.replace(/<.*?>/gmiu, "<>").
+      replace(urlRegex, "{}").
+      replace(/@everyone/g, "[]").
+      replace(/@here/g, "[]").
+      replace(/（/g, "(").
+      replace(/）/g, ")");
+   if (!urlMatch)
+   {
+
+      urlMatch = [];
+
+   }
+
+   if (!everyonePing)
+   {
+
+      everyonePing = [];
+
+   }
+   if (!match)
+   {
+
+      match = [];
+
+   }
+   for (let i = 0; i < match.length; i += 1)
+   {
+
+      const str = match[i];
+      if (!str.match(/<:.*?:([0-9])>/))
+      {
+
+         const text = str.slice(1, -1);
+         const textMatch = text.match(/[a-z\s.!,()0-9]/gi);
+         if (textMatch)
+         {
+
+            if (textMatch.length === text.length)
+            {
+
+               match[i] = text;
+
+            }
+
+         }
+
+      }
+
+
+   }
+
+   if (!codeMatch)
+   {
+
+      codeMatch = [];
+
+   }
+   if (!bigBlock)
+   {
+
+      bigBlock = [];
+
+   }
+
+   for (let i = 0; bigBlock.length > i; i += 1)
+   {
+
+      let string = bigBlock[i];
+      string = string.replace(/`/g, "");
+      const searchString = codeMatch[i];
+
+      if (string === searchString.replace(/`/g, ""))
+      {
+
+         codeMatch.splice(i, 1);
+         // removes the false match from array cause im too annoyed to find a correct regexp solution
+         regexFix = regexFix.replace(bigBlock[i], ")(");
+
+      }
+
+
+   }
+   regexFix = regexFix.replace(/`[^`]+`/g, "()");
+
+   const result = {
+      match,
+      "text": regexFix,
+      // eslint-disable-next-line sort-keys
+      "original": string,
+      "url": urlMatch,
+      // eslint-disable-next-line sort-keys
+      "memberPing": everyonePing,
+      // eslint-disable-next-line sort-keys
+      "code": {
+         "one": codeMatch,
+         "three": bigBlock
+      }
+
+
+   };
+   return result;
+
+}
+
+function translateFix (string, matches)
+{
+
+   let text = string;
+
+   for (const obj of matches.match)
+   {
+
+      text = text.replace(/<\s*?>/i, obj);
+
+   }
+   for (const obj of matches.url)
+   {
+
+      text = text.replace(/{\s*?}/i, obj);
+
+   }
+   for (const obj of matches.memberPing)
+   {
+
+      text = text.replace(/\[\s*?\]/i, obj);
+
+   }
+   for (const obj of matches.code.one)
+   {
+
+      text = text.replace(/\(\s*?\)/, obj);
+
+   }
+   for (const obj of matches.code.three)
+   {
+
+      text = text.replace(/\)\s*?\(/, obj);
+
+   }
+   return text;
+
+
+}
+// ---------------------------------------------------------------------------
+// Retranslation function using auto if it thinks it is in the wrong language
+// ---------------------------------------------------------------------------
+
+async function reTranslate (matches, opts)
+{
+
+   const OPTIONS = {
+      "from": "auto",
+      "to": opts.to
+
+
+   };
+   const res = await translate(matches.text, OPTIONS);
+   return translateFix(res.text, matches);
+
+}
 
 // ---------------------------------------
 // Get user color for translated response
@@ -49,26 +204,27 @@ function getUserColor (data, callback)
    const fw = data.forward;
    const txt = data.text;
    const ft = data.footer;
-   const usr = data.author;
+   const usr = data.message.author;
    const msg = data.message;
+   const color = data.color;
 
    data.forward = fw;
    data.text = txt;
    data.footer = ft;
-   data.author = usr;
+   data.message.author = usr;
    data.message = msg;
+   data.color = color;
 
 
    callback(data);
 
 }
 
-
 // --------------------------
 // Translate buffered chains
 // --------------------------
 
-const bufferSend = function bufferSend (arr, data)
+function bufferSend (arr, data)
 {
 
    const sorted = fn.sortByKey(
@@ -80,33 +236,36 @@ const bufferSend = function bufferSend (arr, data)
 
       data.text = msg.text;
       data.color = msg.color;
-      data.author = msg.author;
+      data.message.author = msg.author;
       data.showAuthor = true;
-      data.message = msg;
+      data.message = data.message || msg;
+
 
       // -------------
       // Send message
       // -------------
-
+      console.log(`Transalte 1`);
       botSend(data);
 
    });
 
-};
+}
 
-const bufferChains = function bufferChains (data, from)
+// eslint-disable-next-line no-unused-vars
+function bufferChains (data, from, guild)
 {
 
    const translatedChains = [];
 
-   data.bufferChains.forEach((chain) =>
+   data.bufferChains.forEach(async (chain) =>
    {
 
       const chainMsgs = chain.msgs.join("\n");
       const to = data.translate.to.valid[0].iso;
+      const matches = await discordPatch(chainMsgs);
 
       translate(
-         chainMsgs,
+         matches.text,
          {
             from,
             to
@@ -114,8 +273,20 @@ const bufferChains = function bufferChains (data, from)
       ).then((res) =>
       {
 
+         if (res.error && res.error === true)
+         {
+
+            const col = "errorcount";
+            const id = "bot";
+            db.increaseServersCount(col, id);
+            // console.log("DEBUG: API Error Found");
+            return;
+
+         }
+
          // Language you set it to translate to when setting up !t channel command
-         const langTo = res.raw[1][4][2];
+         const langTo = to;
+
          // Detected language from text
          const detectedLang = res.from.language.iso;
          // Language you set when setting up !t channel command
@@ -133,7 +304,7 @@ const bufferChains = function bufferChains (data, from)
 
          }
 
-         const output = translateFix(res.text);
+         const output = translateFix(res.text, matches);
 
          getUserColor(
             chain,
@@ -141,7 +312,7 @@ const bufferChains = function bufferChains (data, from)
             {
 
                translatedChains.push({
-                  "author": gotData.author,
+                  "author": gotData.message.author,
                   "color": gotData.color,
                   "text": output,
                   "time": chain.time
@@ -167,13 +338,13 @@ const bufferChains = function bufferChains (data, from)
 
    });
 
-};
+}
 
 // ---------------------
 // Invalid lang checker
 // ---------------------
 
-const invalidLangChecker = function invalidLangChecker (obj, callback)
+function invalidLangChecker (obj, callback)
 {
 
    if (obj && obj.invalid && obj.invalid.length > 0)
@@ -183,29 +354,29 @@ const invalidLangChecker = function invalidLangChecker (obj, callback)
 
    }
 
-};
+}
 
 // --------------------
 // Update server stats
 // --------------------
 
-const updateServerStats = function updateServerStats (message)
+function updateServerStats (message)
 {
 
    const col = "translation";
    let id = "bot";
    db.increaseStatsCount(col, id);
 
-   if (message.channel.type === "text")
+   if (message.channel.type === "GUILD_TEXT")
    {
 
       id = message.channel.guild.id;
 
    }
-   db.increaseServersCount(id);
+   db.increaseServersCount("count", id);
    db.increaseStatsCount(col, id);
 
-};
+}
 
 // ----------------
 // Run translation
@@ -213,12 +384,6 @@ const updateServerStats = function updateServerStats (message)
 
 module.exports = function run (data) // eslint-disable-line complexity
 {
-
-   // -------------------
-   // Get message author
-   // -------------------
-
-   data.author = data.message.author;
 
    // -------------------------
    // Report invalid languages
@@ -293,7 +458,7 @@ module.exports = function run (data) // eslint-disable-line complexity
 
    let guild = null;
 
-   if (data.message.channel.type === "text")
+   if (data.message.channel.type === "GUILD_TEXT")
    {
 
       guild = data.message.channel.guild;
@@ -366,7 +531,7 @@ module.exports = function run (data) // eslint-disable-line complexity
             {
 
                data.text = this.text;
-               data.color = data.message.roleColor;
+               data.color = data.member.displayColor;
                data.showAuthor = true;
                getUserColor(
                   data,
@@ -378,11 +543,12 @@ module.exports = function run (data) // eslint-disable-line complexity
          }
       };
 
-      data.translate.to.valid.forEach((lang) =>
+      data.translate.to.valid.forEach(async (lang) =>
       {
 
+         const matches = await discordPatch(data.translate.original);
          translate(
-            data.translate.original,
+            matches.text,
             {
                from,
                "to": lang.iso
@@ -390,8 +556,20 @@ module.exports = function run (data) // eslint-disable-line complexity
          ).then((res) =>
          {
 
+            if (res.error && res.error === true)
+            {
+
+               const col = "errorcount";
+               const id = "bot";
+               db.increaseServersCount(col, id);
+               // console.log("DEBUG: API Error Found");
+               return;
+
+            }
+
             // Language you set it to translate to when setting up !t channel command
-            const langTo = res.raw[1][4][2];
+            const langTo = lang.iso;
+
             // Detected language from text
             const detectedLang = res.from.language.iso;
             // Language you set when setting up !t channel command
@@ -410,7 +588,7 @@ module.exports = function run (data) // eslint-disable-line complexity
             }
 
             const title = `\`\`\`LESS\n ${lang.name} (${lang.native}) \`\`\`\n`;
-            const output = `\n${title}${translateFix(res.text)}\n`;
+            const output = `\n${title}${translateFix(res.text, matches)}\n`;
             return translateBuffer[bufferID].update(
                output,
                data
@@ -444,40 +622,121 @@ module.exports = function run (data) // eslint-disable-line complexity
       1500
    );
 
-   textArray.forEach((chunk) =>
+   textArray.forEach(async (chunk) =>
    {
 
+      const matches = await discordPatch(chunk);
       translate(
-         chunk,
+         matches.text,
          opts
-      ).then((res) =>
+      ).then(async (res) =>
       {
 
-         // Language you set it to translate to when setting up !t channel command
-         const langTo = res.raw[1][4][2];
+         if (res.error && res.error === true)
+         {
+
+            const col = "errorcount";
+            const id = "bot";
+            db.increaseServersCount(col, id);
+            // console.log("DEBUG: API Error Found");
+            return;
+
+         }
+
+         res.text = translateFix(res.text, matches);
+
+
+         const langTo = opts.to;
+
          // Detected language from text
          const detectedLang = res.from.language.iso;
          // Language you set when setting up !t channel command
          const channelFrom = from;
-         if (detectedLang === langTo)
+
+         if (detectedLang === langTo && res.text === data.message.content)
          {
 
-            return;
+            try
+            {
+
+               if (res.text === data.message.text)
+               {
+
+                  return;
+
+               }
+               if (data.message.client.channels.cache.get(data.forward).guild.id === data.message.client.channels.cache.get(data.message.channel.id).guild.id)
+               {
+
+                  // console.log("DEBUG: Cross Server Checker - Same Server, Same language");
+                  return;
+
+               }
+
+            }
+            catch (err)
+            {
+
+               // console.log(
+               //   `Translate Message Error, Same language Failure, translate.js = Line 638 - SERVER: ${data.message.guild.id}`,
+               //   err
+               // );
+               // console.log(`Translate Message Error, Same language Failure, translate.js = Line 638 - SERVER: ${data.message.guild.id}, DEST CHAN: ${fw}`);
+
+
+            }
+
+            // console.log("DEBUG: Cross Server Checker - Diffrent Server, Same language");
 
          }
          else if (detectedLang !== channelFrom && channelFrom !== "auto")
          {
 
-            return;
+            // eslint-disable-next-line require-atomic-updates
+            res.text = await reTranslate(matches, opts);
+
 
          }
 
          updateServerStats(data.message);
          data.forward = fw;
          data.footer = ft;
-         data.color = data.message.roleColor;
-         data.text = translateFix(res.text);
+         data.color = data.member.displayColor;
+         // data.color = data.message.roleColor;
+         data.text = res.text;
          data.showAuthor = true;
+         data.detectedLang = detectedLang;
+         data.langTo = langTo;
+         if (auth.messageDebug === "4")
+         {
+
+            console.log(`MD4: ${data.message.guild.name} - ${data.message.guild.id} - ${data.message.createdAt}\nMesssage User - ${data.message.author.tag}\nMesssage Content - ${data.message.content}\nTranslated from: ${detectedLang} to: ${langTo}\n----------------------------------------`);
+
+         }
+         if (auth.messageDebug === "2")
+         {
+
+            console.log(`MD2: ${data.message.guild.name} - ${data.message.guild.id} - ${data.message.createdAt}`);
+
+         }
+         if (data.footer)
+         {
+
+            if (data.message.server[0].langdetect === true)
+            {
+
+               data.footer.text += `\nSource Language: ${detectedLang}`;
+
+            }
+
+         }
+         const profanity = data.message.server[0].badwords;
+         if (profanity === "replace" || profanity === "delete")
+         {
+
+            await filter(data);
+
+         }
          return getUserColor(
             data,
             botSend

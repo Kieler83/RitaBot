@@ -1,10 +1,13 @@
-/* eslint-disable no-bitwise */
 // -----------------
 // Global variables
+// Err TAG: RS011??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
 /* eslint-disable consistent-return */
+/* eslint-disable no-bitwise */
+/* eslint-disable no-unused-vars */
+const {MessageEmbed} = require("discord.js");
 const discord = require("discord.js");
 const auth = require("./auth");
 const colors = require("./colors").get;
@@ -14,51 +17,127 @@ const spacer = "​                                                          ​
 // Log data to console
 // --------------------
 
-const devConsole = function devConsole (data)
+function devConsole (data)
 {
 
-   if (auth.dev)
+   if (auth.debug && auth.debug === "1")
    {
 
       return console.log(data);
 
    }
 
-};
+}
 
 // ------------
 // Hook Sender
 // ------------
 
-const hookSend = function hookSend (data)
+function hookSend (data)
 {
 
-   const hook = new discord.WebhookClient(
-      process.env.DISCORD_DEBUG_WEBHOOK_ID,
-      process.env.DISCORD_DEBUG_WEBHOOK_TOKEN
-   );
-   const embed = new discord.MessageEmbed({
-      "color": colors(data.color),
-      "description": data.msg,
-      "footer": {
-         "text": data.footer
-      },
-      "title": data.title
-   });
-   hook.send(embed).catch((err) =>
+   const hsData = {
+      "id": null,
+      "token": null
+   };
+   const debugID = process.env.DISCORD_DEBUG_WEBHOOK_ID;
+   const debugToken = process.env.DISCORD_DEBUG_WEBHOOK_TOKEN;
+
+   if (!debugID || !debugToken || debugID === "YOUR WEBHOOK ID" || debugToken === "YOUR WEBHOOK TOKEN")
    {
 
-      console.error(`hook.send error:\n${err}`);
+      hsData.id = null;
+      hsData.token = null;
+
+   }
+   else
+   {
+
+      hsData.id = process.env.DISCORD_DEBUG_WEBHOOK_ID;
+      hsData.token = process.env.DISCORD_DEBUG_WEBHOOK_TOKEN;
+
+   }
+
+
+   const hook = new discord.WebhookClient(hsData);
+   const embed = new MessageEmbed({
+      "color": colors(data.color),
+      "description": data.msg,
+      "footer": data.footer,
+      "title": data.title
+   });
+
+   if (hsData.id === null)
+   {
+
+      return;
+
+   }
+
+   return hook.send({"embeds": [embed]}).catch((err) =>
+   {
+
+      console.error(`ERROR: Logger.js - hookSend error:\n${err}`);
 
    });
 
-};
+
+}
+
+function activityHookSend (data)
+{
+
+   const ahsData = {
+      "id": null,
+      "token": null
+   };
+   const activityID = process.env.DISCORD_ACTIVITY_WEBHOOK_ID;
+   const activityToken = process.env.DISCORD_ACTIVITY_WEBHOOK_TOKEN;
+
+   if (!activityID || !activityToken || activityID === "YOUR WEBHOOK ID" || activityToken === "YOUR WEBHOOK TOKEN")
+   {
+
+      ahsData.id = process.env.DISCORD_DEBUG_WEBHOOK_ID;
+      ahsData.token = process.env.DISCORD_DEBUG_WEBHOOK_TOKEN;
+
+   }
+   else
+   {
+
+      ahsData.id = process.env.DISCORD_ACTIVITY_WEBHOOK_ID;
+      ahsData.token = process.env.DISCORD_ACTIVITY_WEBHOOK_TOKEN;
+
+   }
+
+   const hook = new discord.WebhookClient(ahsData);
+
+   const embed = new MessageEmbed({
+      "color": colors(data.color),
+      "description": data.msg,
+      "footer": data.footer,
+      "title": data.title
+   });
+
+   if (ahsData.id === null)
+   {
+
+      return;
+
+   }
+   return hook.send({"embeds": [embed]}).catch((err) =>
+   {
+
+      console.error(`ERROR: Logger.js - activityHookSend error:\n${err}`);
+
+   });
+
+}
 
 // -------------
 // Error Logger
 // -------------
 
-const errorLog = function errorLog (error, subtype, id)
+function errorLog (error, subtype, id)
 {
 
    let errorTitle = null;
@@ -92,6 +171,17 @@ const errorLog = function errorLog (error, subtype, id)
 
    }
 
+
+   if (errorTypes[subtype] === ":japanese_ogre:  Unhandled promise rejection")
+   {
+
+      return;
+      // console.log(`----------------------------------------\nError ${errorTitle} Suppressed\n${error.stack}`);
+
+   }
+
+   // console.log(`----------------------------------------\nError ${errorTitle} Suppressed\n${error.stack}`);
+
    hookSend({
       "color": "err",
       // eslint-disable-next-line no-useless-concat
@@ -99,13 +189,14 @@ const errorLog = function errorLog (error, subtype, id)
       "title": errorTitle
    });
 
-};
+
+}
 
 // ----------------
 // Warnings Logger
 // ----------------
 
-const warnLog = function warnLog (warning)
+function warnLog (warning)
 {
 
    hookSend({
@@ -113,79 +204,83 @@ const warnLog = function warnLog (warning)
       "msg": warning
    });
 
-};
+}
 
 // ---------------
 // Guild Join Log
 // ---------------
 
-const logJoin = function logJoin (guild)
+function logJoin (guild, owner)
 {
 
-   if (guild.owner)
+   // const owner = await guild.fetchOwner();
+   if (owner)
    {
 
-      hookSend({
+      activityHookSend({
          "color": "ok",
          "msg":
          `${`:white_check_mark:  **${guild.name}**\n` +
-         "```md\n> "}${guild.id}\n@${guild.owner.user.username}#${
-            guild.owner.user.discriminator}\n${guild.memberCount} members\n\`\`\`${spacer}${spacer}`,
+         "```md\n> "}${guild.id}\n@${owner.user.username}#${owner.user.discriminator}\n${guild.memberCount} members\n\`\`\`${spacer}${spacer}`,
          "title": "Joined Guild"
 
+
       });
+      // console.log(`----------------------------------------\nGuild Join: ${guild.name}\nGuild ID: ${guild.id}\nGuild Owner: ${owner.user.username}#${owner.user.discriminator}\nSize: ${guild.memberCount}\n----------------------------------------`);
 
    }
    else
    {
 
-      hookSend({
+      activityHookSend({
          "color": "ok",
          "msg":
          `${`:white_check_mark:  **${guild.name}**\n` +
-         "```md\n> "}${guild.id}\n${guild.memberCount} members#\n\`\`\`${spacer}${spacer}`,
+         "```md\n> "}${guild.id}\n${guild.memberCount} members\n\`\`\`${spacer}${spacer}`,
          "title": "Joined Guild"
 
       });
+      // console.log(`----------------------------------------\nGuild Join: ${guild.name}\nGuild ID: ${guild.id}\nSize: ${guild.memberCount}\n----------------------------------------`);
 
    }
 
-};
+}
 
 // ----------------
 // Guild Leave Log
 // ----------------
 
-const logLeave = function logLeave (guild)
+function logLeave (guild, owner)
 {
 
-   if (guild.owner)
+   if (owner)
    {
 
-      hookSend({
+      activityHookSend({
          "color": "warn",
          "msg":
          `${`:regional_indicator_x:  **${guild.name}**\n` +
-         "```md\n> "}${guild.id}\n@${guild.owner.user.username}#${
-            guild.owner.user.discriminator}\n${guild.memberCount} members\n\`\`\`${spacer}${spacer}`,
+         "```md\n> "}${guild.id}\n@${owner.user.username}#${owner.user.discriminator}\n${guild.memberCount} members\n\`\`\`${spacer}${spacer}`,
          "title": "Left Guild"
       });
+      // console.log(`----------------------------------------\nGuild Left: ${guild.name}\nGuild ID: ${guild.id}\nGuild Owner: ${owner.user.username}#${owner.user.discriminator}\nSize: ${guild.memberCount}\n----------------------------------------`);
 
    }
    else
    {
 
-      hookSend({
+      activityHookSend({
          "color": "warn",
          "msg":
          `${`:regional_indicator_x:  **${guild.name}**\n` +
          "```md\n> "}${guild.id}\n${guild.memberCount} members\n\`\`\`${spacer}${spacer}`,
          "title": "Left Guild"
       });
+      // console.log(`----------------------------------------\nGuild Left: ${guild.name}\nGuild ID: ${guild.id}\nSize: ${guild.memberCount}\n----------------------------------------`);
 
    }
 
-};
+}
 
 // ------------
 // Logger code
@@ -202,6 +297,7 @@ module.exports = function run (type, data, subtype = null, id)
 
    }
    const logTypes = {
+      "activity": activityHookSend,
       "custom": hookSend,
       "dev": devConsole,
       "error": errorLog,
@@ -224,7 +320,7 @@ module.exports = function run (type, data, subtype = null, id)
 
          {
 
-            console.log("Has guild");
+            // console.log("DEBUG: Has guild");
             const id = data.message.guild.name;
             return logTypes[type](
                data,
@@ -234,11 +330,11 @@ module.exports = function run (type, data, subtype = null, id)
 
          }
 
-         console.log("Has Message");
+         // console.log("DEBUG: Has Message");
 
       }
 
-      console.log("Has");
+      // console.log("DEBUG: Has");
 
       return logTypes[type](
          data,

@@ -1,5 +1,6 @@
 // -----------------
 // Global variables
+// Err TAG: RS009??
 // -----------------
 
 // Codebeat:disable[LOC,ABC,BLOCK_NESTING,ARITY]
@@ -159,10 +160,10 @@ exports.arraySum = function arraySum (array)
 exports.getRoleColor = function getRoleColor (member)
 {
 
-   if (member && member.highestRole && member.highestRole.color)
+   if (member)
    {
 
-      return member.highestRole.color;
+      return member.displayColor;
 
    }
    return null;
@@ -205,10 +206,10 @@ exports.getUser = function getUser (client, userID, cb)
 // Get channel
 // ------------
 
-exports.getChannel = function getChannel (client, channelID, userID, cb)
+exports.getChannel = function getChannel (client, channelId, userID, cb)
 {
 
-   const channel = client.channels.cache.get(channelID);
+   const channel = client.channels.cache.get(channelId);
 
    if (channel)
    {
@@ -251,24 +252,16 @@ exports.getChannel = function getChannel (client, channelID, userID, cb)
 // Get message
 // ------------
 
-exports.getMessage = function getMessage (client, messageID, channelID, userID, cb)
+exports.getMessage = function getMessage (client, messageID, channelId, userID, cb)
 {
 
    module.exports.getChannel(
       client,
-      channelID,
+      channelId,
       userID,
       (channel) =>
       {
 
-         const message = channel.messages.cache.get(messageID);
-
-         if (message)
-         {
-
-            return cb(message);
-
-         }
 
          // Message not in channel cache
 
@@ -280,5 +273,97 @@ exports.getMessage = function getMessage (client, messageID, channelID, userID, 
 
       }
    );
+
+};
+
+exports.getUserPin = function getUserPin (UID, cb)
+{
+
+   let pin = null;
+   const stage1 = UID.split("");
+   const calc1 = [];
+
+   for (let i = 0; i <= 5; i += 1)
+   {
+
+      const stage1count = i * 3;
+      calc1[i] = Number(stage1[stage1count]) + Number(stage1[stage1count + 1]) + Number(stage1[stage1count + 2]);
+
+   }
+
+   const stage2 = [];
+   for (let i = 0; i < calc1.length; i += 1)
+   {
+
+      const temp = calc1[i].toString().split("");
+      const x = i * 2;
+
+      if (temp.length < 2)
+      {
+
+         stage2[x] = "0";
+         stage2[x + 1] = temp[0];
+
+      }
+      else
+      {
+
+         stage2[x] = temp[0];
+         stage2[x + 1] = temp[1];
+
+      }
+
+   }
+
+   const calc2 = [];
+   for (let i = 0; i <= 3; i += 1)
+   {
+
+      const stage2count = i * 3;
+      calc2[i] = Number(stage2[stage2count]) + Number(stage2[stage2count + 1]) + Number(stage2[stage2count + 2]);
+
+   }
+
+   const stage3 = [];
+   for (let i = 0; i < calc2.length; i += 1)
+   {
+
+      const temp = calc2[i].toString().split("");
+      const x = i * 2;
+
+      if (temp.length < 2)
+      {
+
+         stage3[x] = "0";
+         stage3[x + 1] = temp[0];
+
+      }
+      else
+      {
+
+         stage3[x] = temp[0];
+         stage3[x + 1] = temp[1];
+
+      }
+
+   }
+
+   const calc3 = [];
+   for (let i = 0; i <= 3; i += 1)
+   {
+
+      const stage3count = i * 2;
+      calc3[i] = Number(stage3[stage3count]) + Number(stage3[stage3count + 1]);
+      if (calc3[i] >= 10)
+      {
+
+         calc3[i] = Number(9);
+
+      }
+
+   }
+
+   pin = calc3.join("");
+   return cb(pin);
 
 };

@@ -1,6 +1,7 @@
 {
     "parserOptions": {
-        "ecmaVersion": 6
+        "ecmaVersion": 6,
+        "requireConfigFile": false
     },
     "env": {
         "browser": false,
@@ -9,7 +10,7 @@
     },
     //"extends": "eslint:recommended",
     "extends": "eslint:all",
-    "parser": "babel-eslint",
+    "parser": "@babel/eslint-parser",
     "rules": {
       // -------------
       // eslint Error
@@ -76,7 +77,7 @@
       "no-prototype-builtins": "warn",
       "padded-blocks": ["warn", "always"],
       "new-cap": ["warn", {"properties": false}],
-      "capitalized-comments": "warn",
+      "capitalized-comments": "off",
       "quote-props": "warn",
       "no-plusplus": "warn",
       // -----------
@@ -86,6 +87,7 @@
       "no-console": "off",
       "camelcase": "off",
       "no-dupe-keys": "off",
+      "consistent-return": "off",
       // -----------------------------
       // eslint all override defaults
       // -----------------------------
@@ -118,6 +120,7 @@
       "no-mixed-operators": "off",
       "no-ternary": "off",
       "no-nested-ternary": "off",
+      "require-atomic-updates" : "off",
       // ---------------------
       // These could be fixed
       // ---------------------

@@ -38,7 +38,7 @@ function react (data)
             return logger(
                "error",
                err,
-               "command",
+               "react",
                data.message.channel.guild.name
             );
 

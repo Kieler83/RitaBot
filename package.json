@@ -1,6 +1,6 @@
 {
   "name": "ritabot",
-  "version": "1.3.0-beta.9",
+  "version": "1.3.0-beta.11",
   "engines": {
     "node": "17.1.0"
   },
@@ -58,7 +58,7 @@
     "path": "^0.12.7",
     "pg": "^8.7.1",
     "pg-hstore": "^2.3.4",
-    "rita-google-translate-api": "^4.1.0",
+    "rita-google-translate-api": "github:vkedwardli/google-translate-api#translate_a/t",
     "rita-seconds-converter": "^1.3.0",
     "sequelize": "^6.13.0",
     "sqlite3": "^5.0.2",

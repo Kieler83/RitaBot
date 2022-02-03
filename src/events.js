@@ -153,18 +153,7 @@ exports.listen = function listen (client)
                   console.log(`MD1: ${message.guild.name} - ${message.guild.id} - ${message.createdAt}`);
 
                }
-               const col = "message";
-               let id = "bot";
-               db.increaseStatsCount(col, id);
 
-               if (message.channel.type === "GUILD_TEXT")
-               {
-
-                  id = message.channel.guild.id;
-
-               }
-
-               db.increaseStatsCount(col, id);
                // Need to have another if statment here, if server length is greeater than 1 then run below, if not do nothing.
                // SetStatus(client.user, "online", config);
 
@@ -268,14 +257,9 @@ exports.listen = function listen (client)
       {
 
          console.error("Uncaught Exception:", err);
-         logger(
+         return logger(
             "dev",
             err
-         );
-         return logger(
-            "error",
-            err,
-            "uncaught"
          );
 
       }
@@ -283,20 +267,16 @@ exports.listen = function listen (client)
 
    process.on(
       "unhandledRejection",
+      // eslint-disable-next-line no-unused-vars
       (reason, error) =>
       {
 
-         console.error("Unhandled promise rejection:", error);
+         // console.error("Unhandled promise rejection:", error);
          const err = `${`Unhandled Rejection` +
            `\nCaused By:\n`}${reason.stack}`;
-         logger(
+         return logger(
             "dev",
             err
-         );
-         return logger(
-            "error",
-            err,
-            "unhandled",
          );
 
       }
@@ -308,14 +288,9 @@ exports.listen = function listen (client)
       {
 
          console.warn("warning:", warning);
-         logger(
+         return logger(
             "dev",
             warning
-         );
-         return logger(
-            "error",
-            warning,
-            "warning"
          );
 
       }
@@ -369,7 +344,7 @@ exports.listen = function listen (client)
             if (err)
             {
 
-               return console.log("error", err, "command", guild.id);
+               return console.log("error", err, "leave", guild.id);
 
             }
 
@@ -433,7 +408,7 @@ exports.listen = function listen (client)
                      }
                   );
 
-                  await guild.leave();
+                  await guild.leave().catch((err) => console.log(`DEBUG: Blacklisted Error ${err}`));
 
                }
 
@@ -447,7 +422,7 @@ exports.listen = function listen (client)
             if (err)
             {
 
-               return console.log("error", err, "command", guild.id);
+               return console.log("error", err, "join", guild.id);
 
             }
 

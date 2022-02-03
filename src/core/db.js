@@ -62,13 +62,17 @@ const db = process.env.DATABASE_URL.endsWith(".db") ?
       new Sequelize(
          process.env.DATABASE_URL,
          {
-            logging: SequelizeDebugMode,
+            logging: false,
             "dialectOptions": {
                "ssl": {
                   "require": true,
                   "rejectUnauthorized": false
                },
-               acquireTimeout: 60000
+               acquireTimeout: 60000,
+               pool: {
+                  max: 15,
+                  min: 0
+               }
             }
          }
       );
@@ -333,24 +337,25 @@ exports.initializeDatabase = async function initializeDatabase (client)
 {
 
    debugMode && console.log("DEBUG: Stage Init/create tables - Pre Sync");
-   db.sync({logging: SequelizeDebugMode}).then(async () =>
+   db.sync({logging: false}).then(async () =>
    {
 
       // eslint-disable-next-line init-declarations
       let guild;
 
       await this.updateColumns();
-      debugMode && console.log("DEBUG: New columns should be added Before this point.");
-      await Stats.upsert({logging: SequelizeDebugMode,
+      debugMode && console.log("DEBUG: New columns should be added Before this point");
+      await Stats.upsert({logging: false,
          "id": "bot"});
 
-      await Servers.upsert({logging: SequelizeDebugMode,
+      await Servers.upsert({logging: false,
          "id": "bot",
          "lang": "en"});
 
       const guilds = Array.from(client.guilds._cache.keys()).length;
       const guildsArray = Array.from(client.guilds._cache);
       let i = 0;
+      debugMode && console.log(`DEBUG: Active Check all Active Guilds`);
       for (i = 0; i < guilds; i += 1)
       {
 
@@ -358,8 +363,10 @@ exports.initializeDatabase = async function initializeDatabase (client)
          const guildId = guild[1].id;
          // eslint-disable-next-line no-await-in-loop
          await Stats.upsert({"id": guildId,
-            logging: SequelizeDebugMode});
-         Servers.findAll({logging: SequelizeDebugMode,
+            logging: false});
+         // debugMode && console.log(`DEBUG: Active Check all Active Guilds ${i}`);
+         Servers.findAll({logging: false,
+            // eslint-disable-next-line no-loop-func
             "where": {"id": guildId}}).then((projects) =>
          {
 
@@ -367,24 +374,35 @@ exports.initializeDatabase = async function initializeDatabase (client)
             {
 
                debugMode && console.log("DEBUG: Add Server");
-               Servers.upsert({logging: SequelizeDebugMode,
+               Servers.upsert({logging: false,
                   "id": guildId,
                   "lang": "en",
                   "active": true});
-               Stats.upsert({logging: SequelizeDebugMode,
+               Stats.upsert({logging: false,
                   "id": guildId});
 
             }
-            debugMode && console.log("DEBUG: Active Check all Active Guilds");
-            Servers.upsert({logging: SequelizeDebugMode,
+            // debugMode && console.log("DEBUG: Active Check all Active Guilds");
+            Servers.upsert({logging: false,
                "id": guildId,
                "active": true});
+
+            /*
+            if (projects[0].blacklisted === true)
+            {
+
+               const target = client.guilds.cache.get(projects[0].id);
+               target.leave().catch(err);
+               console.log(`DEBUG: Blacklisted ${target.id}`);
+
+            }
+            */
 
          });
 
       }
       debugMode && console.log("DEBUG: Stage Init/create tables - Pre servers FindAll");
-      const serversFindAll = await Servers.findAll({logging: SequelizeDebugMode});
+      const serversFindAll = await Servers.findAll({logging: false});
       for (let i = 0; i < serversFindAll.length; i += 1)
       {
 
@@ -457,7 +475,7 @@ exports.addServer = async function addServer (id, lang)
          "prefix": "!tr"
       }
    };
-   await Servers.findAll({logging: SequelizeDebugMode,
+   await Servers.findAll({logging: false,
       "where": {id}}).then((server) =>
    {
 
@@ -469,7 +487,7 @@ exports.addServer = async function addServer (id, lang)
             lang,
             "prefix": "!tr"
          }).catch((err) => console.log("VALIDATION: Server Already Exists in Servers Table"));
-         Stats.create({logging: SequelizeDebugMode,
+         Stats.create({logging: false,
             id}).catch((err) => console.log("VALIDATION: Server Already Exists in Stats Table"));
 
       }
@@ -665,7 +683,7 @@ exports.updateColumns = async function updateColumns ()
    // For older version of RITA, must remove old unique index
    debugMode && console.log("DEBUG: Stage Remove old RITA Unique index");
    await this.dropTableIndex("tasks", "tasks_origin_dest");
-   debugMode && console.log("DEBUG : All old index removed");
+   debugMode && console.log("DEBUG: All old index removed");
 
 };
 
@@ -681,7 +699,7 @@ exports.dropTableIndex = async function dropTableIndex (tableName, indexName)
    if (listTableIndexes.find((element) => element.name === indexName) === undefined)
    {
 
-      debugMode && console.log(`Index ${indexName} already dropped before`);
+      debugMode && console.log(`DEBUG: Index ${indexName} already dropped`);
 
    }
    else
@@ -1146,7 +1164,7 @@ exports.addTask = function addTask (task)
             logger(
                "error",
                err,
-               "command",
+               "db",
                task.server
             );
 

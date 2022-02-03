@@ -60,9 +60,9 @@ const client = new Client({
    "makeCache": Options.cacheWithLimits({
       "GuildBanManager": 20, // guild.bans
       "GuildManager": Infinity, // client.guilds
-      "MessageManager": 2, // channel.messages
-      "PresenceManager": 1, // guild.presences
-      "UserManager": 1 // client.users
+      "MessageManager": 15, // channel.messages
+      "PresenceManager": 15, // guild.presences
+      "UserManager": 15 // client.users
    }),
    "intents": myIntents
    // "waitGuildTimeout": 7000

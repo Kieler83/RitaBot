@@ -363,18 +363,13 @@ function invalidLangChecker (obj, callback)
 function updateServerStats (message)
 {
 
-   const col = "translation";
-   let id = "bot";
-   db.increaseStatsCount(col, id);
-
    if (message.channel.type === "GUILD_TEXT")
    {
 
-      id = message.channel.guild.id;
+      db.increaseStatsCount("translation", message.channel.guild.id);
+      db.increaseServersCount("count", message.channel.guild.id);
 
    }
-   db.increaseServersCount("count", id);
-   db.increaseStatsCount(col, id);
 
 }
 

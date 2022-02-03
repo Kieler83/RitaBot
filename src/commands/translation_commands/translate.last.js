@@ -13,7 +13,7 @@ const auth = require("../../core/auth");
 // Command Disabled Pending Fix
 // -----------------------------
 
-module.exports.old = function old (data)
+module.exports.run = function run (data)
 {
 
    try
@@ -80,7 +80,7 @@ function getCount (count)
 // Translate last
 // ---------------
 
-module.exports.run = function run (data)
+module.exports.old = function old (data)
 {
 
    // -------------------------

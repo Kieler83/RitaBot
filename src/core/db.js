@@ -62,7 +62,7 @@ const db = process.env.DATABASE_URL.endsWith(".db") ?
       new Sequelize(
          process.env.DATABASE_URL,
          {
-            logging: false,
+            logging: SequelizeDebugMode,
             "dialectOptions": {
                "ssl": {
                   "require": true,
@@ -337,7 +337,7 @@ exports.initializeDatabase = async function initializeDatabase (client)
 {
 
    debugMode && console.log("DEBUG: Stage Init/create tables - Pre Sync");
-   db.sync({logging: false}).then(async () =>
+   db.sync({logging: SequelizeDebugMode}).then(async () =>
    {
 
       // eslint-disable-next-line init-declarations
@@ -345,10 +345,10 @@ exports.initializeDatabase = async function initializeDatabase (client)
 
       await this.updateColumns();
       debugMode && console.log("DEBUG: New columns should be added Before this point");
-      await Stats.upsert({logging: false,
+      await Stats.upsert({logging: SequelizeDebugMode,
          "id": "bot"});
 
-      await Servers.upsert({logging: false,
+      await Servers.upsert({logging: SequelizeDebugMode,
          "id": "bot",
          "lang": "en"});
 
@@ -363,9 +363,9 @@ exports.initializeDatabase = async function initializeDatabase (client)
          const guildId = guild[1].id;
          // eslint-disable-next-line no-await-in-loop
          await Stats.upsert({"id": guildId,
-            logging: false});
-         // debugMode && console.log(`DEBUG: Active Check all Active Guilds ${i}`);
-         Servers.findAll({logging: false,
+            logging: SequelizeDebugMode});
+         debugMode && console.log(`DEBUG: Active Check all Active Guilds ${i}`);
+         Servers.findAll({logging: SequelizeDebugMode,
             // eslint-disable-next-line no-loop-func
             "where": {"id": guildId}}).then((projects) =>
          {
@@ -374,16 +374,16 @@ exports.initializeDatabase = async function initializeDatabase (client)
             {
 
                debugMode && console.log("DEBUG: Add Server");
-               Servers.upsert({logging: false,
+               Servers.upsert({logging: SequelizeDebugMode,
                   "id": guildId,
                   "lang": "en",
                   "active": true});
-               Stats.upsert({logging: false,
+               Stats.upsert({logging: SequelizeDebugMode,
                   "id": guildId});
 
             }
-            // debugMode && console.log("DEBUG: Active Check all Active Guilds");
-            Servers.upsert({logging: false,
+            debugMode && console.log("DEBUG: Active Check all Active Guilds");
+            Servers.upsert({logging: SequelizeDebugMode,
                "id": guildId,
                "active": true});
 
@@ -402,7 +402,7 @@ exports.initializeDatabase = async function initializeDatabase (client)
 
       }
       debugMode && console.log("DEBUG: Stage Init/create tables - Pre servers FindAll");
-      const serversFindAll = await Servers.findAll({logging: false});
+      const serversFindAll = await Servers.findAll({logging: SequelizeDebugMode});
       for (let i = 0; i < serversFindAll.length; i += 1)
       {
 
@@ -475,7 +475,7 @@ exports.addServer = async function addServer (id, lang)
          "prefix": "!tr"
       }
    };
-   await Servers.findAll({logging: false,
+   await Servers.findAll({logging: SequelizeDebugMode,
       "where": {id}}).then((server) =>
    {
 
@@ -487,7 +487,7 @@ exports.addServer = async function addServer (id, lang)
             lang,
             "prefix": "!tr"
          }).catch((err) => console.log("VALIDATION: Server Already Exists in Servers Table"));
-         Stats.create({logging: false,
+         Stats.create({logging: SequelizeDebugMode,
             id}).catch((err) => console.log("VALIDATION: Server Already Exists in Stats Table"));
 
       }
@@ -764,7 +764,7 @@ exports.channelTasks = function channelTasks (data)
    {
 
       // eslint-disable-next-line no-unused-vars
-      const taskList = Tasks.findAll({logging: false,
+      const taskList = Tasks.findAll({logging: SequelizeDebugMode,
          "where": {"origin": id,
             "active": true}}).then(function res (result)
       {
@@ -1185,7 +1185,7 @@ exports.increaseServersCount = function increaseServersCount (col, id)
    debugMode && console.log("DEBUG: Stage Update count in Servers table");
    return Servers.increment(
       col,
-      {logging: false,
+      {logging: SequelizeDebugMode,
          "where": {id}}
    );
 
@@ -1197,7 +1197,7 @@ exports.increaseStatsCount = function increaseStatsCount (col, id)
    debugMode && console.log("DEBUG: Stage Update counts in stats table");
    return Stats.increment(
       col,
-      {logging: false,
+      {logging: SequelizeDebugMode,
          "where": {id}},
    );
 
